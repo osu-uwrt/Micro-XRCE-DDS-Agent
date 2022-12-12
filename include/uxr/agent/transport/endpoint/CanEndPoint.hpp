@@ -26,27 +26,27 @@ public:
     CanEndPoint() = default;
 
     CanEndPoint(
-            uint32_t can_id)
-        : can_id_{can_id}
+            uint32_t client_id)
+        : client_id_{client_id}
     {}
 
     ~CanEndPoint() {}
 
     bool operator<(const CanEndPoint& other) const
     {
-        return (can_id_ < other.can_id_);
+        return (client_id_ < other.client_id_);
     }
 
     friend std::ostream& operator<<(std::ostream& os, const CanEndPoint& endpoint)
     {
-        os << static_cast<int>(endpoint.can_id_);
+        os << static_cast<int>(endpoint.client_id_);
         return os;
     }
 
-    uint32_t get_can_id() const { return can_id_; }
+    uint32_t get_client_id() const { return client_id_; }
 
 private:
-    uint32_t can_id_;
+    uint32_t client_id_;
 };
 
 } // namespace uxr

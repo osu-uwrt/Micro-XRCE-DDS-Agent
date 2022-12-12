@@ -571,7 +571,7 @@ public:
             {
                 server->enable_p2p(p2p_.value());
             }
-            else 
+            else
             {
                 UXR_AGENT_LOG_WARN(
                         UXR_DECORATE_YELLOW("P2P protocol error"),
@@ -737,7 +737,7 @@ public:
                 std::cerr << "Error opening file '" << file_.value() << "': " << strerror(errno) << std::endl;
                 return false;
             }
-            
+
             myfile.close();
         }
 
@@ -773,7 +773,7 @@ public:
     const std::string get_help() const
     {
         std::stringstream ss;
-        ss << "    " << dev_.get_help();
+        ss << "    " << dev_.get_help() << std::endl;
         return ss.str();
     }
 
@@ -823,7 +823,7 @@ public:
                 std::cerr << "Error opening file '" << file_.value() << "': " << strerror(errno) << std::endl;
                 return false;
             }
-            
+
             myfile.close();
         }
 
@@ -883,7 +883,7 @@ class CanArgs
 public:
     CanArgs()
         : dev_("-D", "--dev")
-        , can_id_("-I", "--id", DEFAULT_CAN_ID)
+        , client_ids_("-I", "--id", "")
     {
     }
 
@@ -898,7 +898,7 @@ public:
         }
         else
         {
-            can_id_.parse_argument(argc, argv);
+            client_ids_.parse_argument(argc, argv);
         }
 
         return (ParseResult::VALID == parse_dev ? true : false);
@@ -909,21 +909,33 @@ public:
         return dev_.value();
     }
 
-    const std::string can_id()
+    std::vector<std::string> client_ids()
     {
-        return can_id_.value();
+        std::vector<std::string> client_id_list;
+
+        if (client_ids_.found())
+        {
+            std::istringstream iss(client_ids_.value());
+            for (std::string s; iss >> s; )
+            {
+                client_id_list.push_back(s);
+            }
+        }
+
+        return client_id_list;
     }
 
     const std::string get_help() const
     {
         std::stringstream ss;
-        ss << "    " << dev_.get_help();
+        ss << "    " << dev_.get_help() << std::endl;
+        ss << "    " << client_ids_.get_help() << std::endl;
         return ss.str();
     }
 
 private:
     Argument<std::string> dev_;
-    Argument<std::string> can_id_;
+    Argument<std::string> client_ids_;
 };
 #endif // UAGENT_SOCKETCAN_PROFILE
 #endif // _WIN32
@@ -1093,7 +1105,7 @@ public:
         ss << pseudoterminal_args_.get_help();
         ss << serial_args_.get_help();
 #ifdef UAGENT_SOCKETCAN_PROFILE
-        ss << "  * CAN FD (canfd)" << std::endl;
+        ss << "  * CAN (can)" << std::endl;
         ss << can_args_.get_help();
 #endif // UAGENT_SOCKETCAN_PROFILE
 #endif // _WIN32
@@ -1123,7 +1135,7 @@ private:
 template<> inline bool ArgumentParser<TermiosAgent>::launch_agent()
 {
     struct termios attr = init_termios(serial_args_.baud_rate().c_str());
-    
+
     agent_server_.reset(new TermiosAgent(
         serial_args_.dev().c_str(),  O_RDWR | O_NOCTTY, attr, 0, utils::get_mw_kind(common_args_.middleware())));
 
@@ -1180,9 +1192,22 @@ template<> inline bool ArgumentParser<PseudoTerminalAgent>::launch_agent()
 #ifdef UAGENT_SOCKETCAN_PROFILE
 template<> inline bool ArgumentParser<CanAgent>::launch_agent()
 {
-    uint32_t can_id = strtoul(can_args_.can_id().c_str(), NULL, 16);
+    std::vector<uint32_t> client_ids;
+
+    std::vector<std::string> client_ids_str = can_args_.client_ids();
+
+    for(std::string client_id_str : client_ids_str) {
+        char* end;
+        uint32_t client_id = strtoul(client_id_str.c_str(), &end, 16);
+
+        if (end != client_id_str.c_str() && *end == '\0') {
+            client_ids.push_back(client_id);
+        } else {
+            std::cerr << "Invalid client ID: " << client_id_str << std::endl;
+        }
+    }
     agent_server_.reset(new CanAgent(
-            can_args_.dev().c_str(), can_id, utils::get_mw_kind(common_args_.middleware())));
+            can_args_.dev().c_str(), client_ids, utils::get_mw_kind(common_args_.middleware())));
     if (agent_server_->start())
     {
         common_args_.apply_actions(agent_server_);
@@ -1190,7 +1215,7 @@ template<> inline bool ArgumentParser<CanAgent>::launch_agent()
     }
     else
     {
-        std::cerr << "Error while starting canfd agent!" << std::endl;
+        std::cerr << "Error while starting can agent!" << std::endl;
     }
 
     return false;

@@ -16,6 +16,10 @@
 #include <uxr/agent/utils/Conversion.hpp>
 #include <uxr/agent/logger/Logger.hpp>
 
+#include <assert.h>
+#include <chrono>
+#include <sstream>
+
 #include <unistd.h>
 
 #include <net/if.h>
@@ -29,12 +33,30 @@ namespace uxr {
 
 CanAgent::CanAgent(
         char const* dev,
-        uint32_t can_id,
+        std::vector<uint32_t> client_ids,
         Middleware::Kind middleware_kind)
     : Server<CanEndPoint>{middleware_kind}
     , dev_{dev}
-    , can_id_{can_id}
+    , msg_decoder{}
 {
+    static_assert(sizeof(client_id_mask_) * 8 >= (1<<CANMORE_CLIENT_ID_LENGTH), "Client ID mask cannot fit all possible client IDs");
+
+    // Generate client ID mask (significantly reduces overhead when searching for client ID matches during receive)
+    client_id_mask_ = 0;
+    for (uint32_t client_id : client_ids)
+    {
+        if (client_id < (1<<CANMORE_CLIENT_ID_LENGTH))
+        {
+            client_id_mask_ |= (1<<client_id);
+        }
+        else
+        {
+            UXR_AGENT_LOG_ERROR(
+                UXR_DECORATE_RED("invalid client id"),
+                "0x{:x} requested, max ID 0x{:x}",
+                client_id, (1<<CANMORE_CLIENT_ID_LENGTH)-1);
+        }
+    }
 }
 
 CanAgent::~CanAgent()
@@ -54,7 +76,6 @@ CanAgent::~CanAgent()
 
 bool CanAgent::init()
 {
-    static int enable_canfd = 1;
     bool rv = false;
 
     poll_fd_.fd = socket(PF_CAN, SOCK_RAW, CAN_RAW);
@@ -66,53 +87,65 @@ bool CanAgent::init()
 
         // Get interface index by name
         strcpy(ifr.ifr_name, dev_.c_str());
-        ioctl(poll_fd_.fd, SIOCGIFINDEX, &ifr);
+        if (-1 == ioctl(poll_fd_.fd, SIOCGIFINDEX, &ifr)) {
+            UXR_AGENT_LOG_ERROR(
+                UXR_DECORATE_RED("ioctl error"),
+                "errno: {} ({})",
+                strerror(errno), errno);
+            return rv;
+        }
 
         memset(&address, 0, sizeof(address));
         address.can_family = AF_CAN;
         address.can_ifindex = ifr.ifr_ifindex;
 
+        // Bind to interface to receive CAN frames
         if (-1 != bind(poll_fd_.fd,
                 reinterpret_cast<struct sockaddr*>(&address),
                 sizeof(address)))
         {
-            // Enable CAN FD
-            if (-1 != setsockopt(poll_fd_.fd, SOL_CAN_RAW, CAN_RAW_FD_FRAMES,
-                    &enable_canfd, sizeof(enable_canfd)))
-            {
-                poll_fd_.events = POLLIN;
-                rv = true;
+            poll_fd_.events = POLLIN;
+            rv = true;
 
-                UXR_AGENT_LOG_INFO(
-                    UXR_DECORATE_GREEN("running..."),
-                    "device: {}, fd: {}",
-                    dev_, poll_fd_.fd);
-
-
-                // TODO: add filter for micro-ROS devices
+            // Format client ID mask
+            std::stringstream ss;
+            ss << "{";
+            uint32_t mask = client_id_mask_;
+            if (mask == 0) {
+                ss << " all ids ";
+            } else {
+                int i = 0;
+                while (mask != 0) {
+                    if (mask & 1) {
+                        mask >>= 1;
+                        ss << fmt::format(" 0x{:x}{}", i, (mask == 0 ? ' ' : ','));
+                    } else {
+                        mask >>= 1;
+                    }
+                    i++;
+                }
             }
-            else
-            {
-                UXR_AGENT_LOG_ERROR(
-                    UXR_DECORATE_RED("Enable CAN FD failed"),
-                    "device: {},errno: {}",
-                    dev_, errno);
-            }
+            ss << "}";
+
+            UXR_AGENT_LOG_INFO(
+                UXR_DECORATE_GREEN("running..."),
+                "device: {}, id mask: {}, fd: {}",
+                dev_, ss.str(), poll_fd_.fd);
         }
         else
         {
             UXR_AGENT_LOG_ERROR(
                 UXR_DECORATE_RED("SocketCan bind error"),
-                "device: {}, errno: {}",
-                dev_, errno);
+                "device: {}, errno: {} ({})",
+                dev_, strerror(errno), errno);
         }
     }
     else
     {
         UXR_AGENT_LOG_ERROR(
             UXR_DECORATE_RED("SocketCan error"),
-            "errno: {}",
-            errno);
+            "errno: {} ({})",
+            strerror(errno), errno);
     }
 
     return rv;
@@ -120,6 +153,9 @@ bool CanAgent::init()
 
 bool CanAgent::fini()
 {
+    // Clear all existing decoder states
+    msg_decoder.clear();
+
     if (-1 == poll_fd_.fd)
     {
         return true;
@@ -138,8 +174,8 @@ bool CanAgent::fini()
     {
         UXR_AGENT_LOG_ERROR(
             UXR_DECORATE_RED("close server error"),
-            "fd: {}, device: {}, errno: {}",
-            poll_fd_.fd, dev_, errno);
+            "fd: {}, device: {}, errno: {} ({})",
+            poll_fd_.fd, dev_, strerror(errno), errno);
     }
 
     poll_fd_.fd = -1;
@@ -151,50 +187,156 @@ bool CanAgent::recv_message(
         int timeout,
         TransportRc& transport_rc)
 {
-    bool rv = false;
-    struct canfd_frame frame = {};
+    // Timeout calculations
+    const auto start_time = std::chrono::steady_clock::now();
+    const auto end_time = start_time + std::chrono::duration<double, std::milli>(timeout);
 
-    int poll_rv = poll(&poll_fd_, 1, timeout);
+    while (true) {
+        const auto current_timeout_duration = std::chrono::duration<double, std::milli>(end_time - std::chrono::steady_clock::now());
+        int current_timeout_ms = current_timeout_duration.count();
+        if (current_timeout_ms < 0) {
+            current_timeout_ms = 0;
+        }
 
-    if (0 < poll_rv)
-    {
-        if (0 < read(poll_fd_.fd, &frame, sizeof(struct canfd_frame)))
+        int poll_rv = poll(&poll_fd_, 1, current_timeout_ms);
+
+        if (0 < poll_rv)
         {
-            // Omit EFF, RTR, ERR flags (Assume EFF on CAN FD)
-            uint32_t can_id = frame.can_id & CAN_ERR_MASK;
-            size_t len = frame.data[0];   // XRCE payload lenght
-
-            if (len > (CANFD_MTU - 1))
+            can_frame rx_frame;
+            if (0 < read(poll_fd_.fd, &rx_frame, sizeof(rx_frame)))
             {
-                // Overflow MTU (63 bytes)
-                return false;
+
+                // Omit RTR, ERR frames
+                if ((rx_frame.can_id & CAN_ERR_FLAG) || (rx_frame.can_id & CAN_RTR_FLAG))
+                {
+                    continue;
+                }
+
+                // Decode CAN ID
+                bool is_extended = (rx_frame.can_id & CAN_EFF_FLAG ? true : false);
+                canmore_id_t id;
+                id.identifier = (rx_frame.can_id & CAN_ERR_MASK);
+
+                uint32_t client_id;
+                uint32_t type;
+                uint32_t direction;
+                uint32_t noc;
+                uint32_t crc;
+
+                if (is_extended)
+                {
+                    client_id = id.pkt_ext.client_id;
+                    type = id.pkt_ext.type;
+                    direction = id.pkt_ext.direction;
+                    noc = id.pkt_ext.noc;
+                    crc = id.pkt_ext.crc;
+                }
+                else
+                {
+                    client_id = id.pkt_std.client_id;
+                    type = id.pkt_std.type;
+                    direction = id.pkt_std.direction;
+                    noc = id.pkt_std.noc;
+                    crc = 0;
+                }
+
+                // Drop unwanted frames
+                if (type != CANMORE_TYPE_MSG)
+                {
+                    // Frame isn't message type, ignore it
+                    continue;
+                }
+
+                if (client_id_mask_ != 0 && ((1<<client_id) & client_id_mask_) == 0)
+                {
+                    // Message not for this client, ignore it
+                    continue;
+                }
+
+                if (direction != CANMORE_DIRECTION_CLIENT_TO_AGENT)
+                {
+                    // Received a frame that only this node is allowed to send?
+                    UXR_AGENT_LOG_WARN(
+                        UXR_DECORATE_YELLOW("receive warning"),
+                        "Another agent detected communicating with client id %d",
+                        client_id);
+                    continue;
+                }
+
+                std::map<int, CANmoreMsgDecoderWrapper>::iterator it = msg_decoder.find(client_id);
+
+                CANmoreMsgDecoderWrapper &decoder = [&]()->CANmoreMsgDecoderWrapper&
+                {
+                    if (it == msg_decoder.end())
+                    {
+                        CANmoreMsgDecoderWrapper newDecoder;
+
+                        auto inserted = msg_decoder.insert(std::pair<int, CANmoreMsgDecoderWrapper>(client_id, newDecoder));
+                        return inserted.first->second;
+                    }
+                    else
+                    {
+                        return it->second;
+                    }
+                }();
+
+                if (!is_extended) {
+                    decoder.decode_frame(noc, rx_frame.data, rx_frame.len);
+                } else {
+                    uint8_t msg_tmp[CANMORE_MAX_MSG_LENGTH];
+                    size_t msg_len = decoder.decode_last_frame(noc, rx_frame.data, rx_frame.len, crc, msg_tmp);
+
+                    if (msg_len == 0) {
+                        // Decode failed, drop the frame
+                        continue;
+                    }
+
+                    input_packet.message.reset(new InputMessage(msg_tmp, static_cast<size_t>(msg_len)));
+                    input_packet.source = CanEndPoint(client_id);
+
+                    uint32_t raw_client_key;
+                    if (Server<CanEndPoint>::get_client_key(input_packet.source, raw_client_key))
+                    {
+                        UXR_AGENT_LOG_MESSAGE(
+                            UXR_DECORATE_YELLOW("[==>> CAN <<==]"),
+                            raw_client_key,
+                            input_packet.message->get_buf(),
+                            input_packet.message->get_len());
+                    }
+                    return true;
+                }
             }
-
-            input_packet.message.reset(new InputMessage(&frame.data[1], len));
-            input_packet.source = CanEndPoint(can_id);
-            rv = true;
-
-            uint32_t raw_client_key;
-            if (Server<CanEndPoint>::get_client_key(input_packet.source, raw_client_key))
+            else
             {
-                UXR_AGENT_LOG_MESSAGE(
-                    UXR_DECORATE_YELLOW("[==>> CAN <<==]"),
-                    raw_client_key,
-                    input_packet.message->get_buf(),
-                    input_packet.message->get_len());
+                UXR_AGENT_LOG_ERROR(
+                    UXR_DECORATE_RED("recv message error"),
+                    "fd: {}, device: {}, errno: {} ({})",
+                    poll_fd_.fd, dev_, strerror(errno), errno);
+
+                transport_rc = TransportRc::server_error;
+                break;
             }
         }
         else
         {
-            transport_rc = TransportRc::server_error;
+            if (poll_rv == 0)
+            {
+                transport_rc = TransportRc::timeout_error;
+            }
+            else
+            {
+                UXR_AGENT_LOG_ERROR(
+                    UXR_DECORATE_RED("poll message error"),
+                    "fd: {}, device: {}, errno: {} ({})",
+                    poll_fd_.fd, dev_, strerror(errno), errno);
+
+                transport_rc = TransportRc::server_error;
+            }
+            break;
         }
     }
-    else
-    {
-        transport_rc = (poll_rv == 0) ? TransportRc::timeout_error : TransportRc::server_error;
-    }
 
-    return rv;
+    return false;
 }
 
 bool CanAgent::send_message(
@@ -202,54 +344,51 @@ bool CanAgent::send_message(
         TransportRc& transport_rc)
 {
     bool rv = false;
-    struct canfd_frame frame = {};
-    struct pollfd poll_fd_write_;
-    size_t packet_len = output_packet.message->get_len();
 
-    if (packet_len > (CANFD_MTU - 1))
-    {
-        // Overflow MTU (63 bytes)
-        return 0;
-    }
+    canmore_msg_encoder_t encoder;
+    canmore_msg_encode_init(&encoder, output_packet.destination.get_client_id(), CANMORE_DIRECTION_AGENT_TO_CLIENT);
+    canmore_msg_encode_load(&encoder, output_packet.message->get_buf(), output_packet.message->get_len());
 
-    poll_fd_write_.fd = poll_fd_.fd;
-    poll_fd_write_.events = POLLOUT;
-    int poll_rv = poll(&poll_fd_write_, 1, 0);
+    while (!canmore_msg_encode_done(&encoder)) {
+        struct can_frame frame = {};
 
-    if (0 < poll_rv)
-    {
-        frame.can_id = output_packet.destination.get_can_id() | CAN_EFF_FLAG;
-        frame.data[0] = (uint8_t) packet_len;   // XRCE payload lenght
-        frame.len = (uint8_t) (packet_len + 1);   // CAN frame DLC
+        bool is_extended;
+        unsigned dlc;
+        canmore_msg_encode_next(&encoder, frame.data, &dlc, &frame.can_id, &is_extended);
+        frame.len = dlc;
 
-        memcpy(&frame.data[1], output_packet.message->get_buf(), packet_len);
+        if (is_extended){
+            frame.can_id |= CAN_EFF_FLAG;
+        }
 
-        if (0 < ::write(poll_fd_.fd, &frame, sizeof(struct canfd_frame)))
+        if (0 < ::write(poll_fd_.fd, &frame, sizeof(frame)))
         {
             rv = true;
-
-            uint32_t raw_client_key;
-            if (Server<CanEndPoint>::get_client_key(output_packet.destination, raw_client_key))
-            {
-                UXR_AGENT_LOG_MESSAGE(
-                    UXR_DECORATE_YELLOW("[** <<CAN>> **]"),
-                    raw_client_key,
-                    output_packet.message->get_buf(),
-                    packet_len);
-            }
         }
         else
         {
             // Write failed
+            UXR_AGENT_LOG_ERROR(
+                UXR_DECORATE_RED("send message error"),
+                "fd: {}, device: {}, errno: {} ({})",
+                poll_fd_.fd, dev_, strerror(errno), errno);
+
             transport_rc = TransportRc::server_error;
         }
     }
-    else
-    {
-        // Can device is busy
-        transport_rc = TransportRc::server_error;
-    }
 
+    if (rv)
+    {
+        uint32_t raw_client_key;
+        if (Server<CanEndPoint>::get_client_key(output_packet.destination, raw_client_key))
+        {
+            UXR_AGENT_LOG_MESSAGE(
+                UXR_DECORATE_YELLOW("[** <<CAN>> **]"),
+                raw_client_key,
+                output_packet.message->get_buf(),
+                output_packet.message->get_len());
+        }
+    }
     return rv;
 }
 

@@ -20,17 +20,47 @@
 #include <uxr/agent/transport/stream_framing/StreamFramingProtocol.hpp>
 #include <sys/poll.h>
 
-#define DEFAULT_CAN_ID "0x00000001"
+#include <uxr/agent/transport/can/canmore_msg_encoding.h>
 
 namespace eprosima {
 namespace uxr {
+
+class CANmoreMsgDecoderWrapper
+{
+public:
+    CANmoreMsgDecoderWrapper()
+    {
+        canmore_msg_decode_init(&decoder_state);
+    }
+
+    ~CANmoreMsgDecoderWrapper()
+    {}
+
+    void reset_state()
+    {
+        canmore_msg_decode_reset_state(&decoder_state);
+    }
+
+    bool decode_frame(uint8_t seq_num, uint8_t *data, size_t data_len)
+    {
+        return canmore_msg_decode_frame(&decoder_state, seq_num, data, data_len);
+    }
+
+    size_t decode_last_frame(uint8_t seq_num, uint8_t *data, size_t data_len, uint32_t crc, uint8_t *data_out)
+    {
+        return canmore_msg_decode_last_frame(&decoder_state, seq_num, data, data_len, crc, data_out);
+    }
+
+private:
+    canmore_msg_decoder_t decoder_state;
+};
 
 class CanAgent : public Server<CanEndPoint>
 {
 public:
     CanAgent(
             char const * dev,
-            uint32_t can_id,
+            std::vector<uint32_t> client_ids,
             Middleware::Kind middleware_kind);
 
     ~CanAgent();
@@ -60,8 +90,10 @@ private:
 
 private:
     const std::string dev_;
-    const uint32_t can_id_;
+    uint32_t client_id_mask_;
     struct pollfd poll_fd_;
+
+    std::map<int, CANmoreMsgDecoderWrapper> msg_decoder;
 };
 
 } // namespace uxr
