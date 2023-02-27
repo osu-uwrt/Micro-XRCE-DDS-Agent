@@ -30,7 +30,7 @@ class CANmoreMsgDecoderWrapper
 public:
     CANmoreMsgDecoderWrapper()
     {
-        canmore_msg_decode_init(&decoder_state);
+        canmore_msg_decode_init(&decoder_state, NULL, NULL);
     }
 
     ~CANmoreMsgDecoderWrapper()

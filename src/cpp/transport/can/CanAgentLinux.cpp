@@ -45,7 +45,7 @@ CanAgent::CanAgent(
     client_id_mask_ = 0;
     for (uint32_t client_id : client_ids)
     {
-        if (client_id < (1<<CANMORE_CLIENT_ID_LENGTH))
+        if (client_id < 1 || client_id < (1<<CANMORE_CLIENT_ID_LENGTH))
         {
             client_id_mask_ |= (1<<client_id);
         }
@@ -53,7 +53,7 @@ CanAgent::CanAgent(
         {
             UXR_AGENT_LOG_ERROR(
                 UXR_DECORATE_RED("invalid client id"),
-                "0x{:x} requested, max ID 0x{:x}",
+                "0x{:x} requested, max ID 0x{:x}, min ID 0x01",
                 client_id, (1<<CANMORE_CLIENT_ID_LENGTH)-1);
         }
     }
@@ -247,6 +247,12 @@ bool CanAgent::recv_message(
                     continue;
                 }
 
+                if (client_id == 0)
+                {
+                    // client_id 0 is reserved
+                    continue;
+                }
+
                 if (client_id_mask_ != 0 && ((1<<client_id) & client_id_mask_) == 0)
                 {
                     // Message not for this client, ignore it
@@ -281,10 +287,10 @@ bool CanAgent::recv_message(
                 }();
 
                 if (!is_extended) {
-                    decoder.decode_frame(noc, rx_frame.data, rx_frame.len);
+                    decoder.decode_frame(noc, rx_frame.data, rx_frame.can_dlc);
                 } else {
                     uint8_t msg_tmp[CANMORE_MAX_MSG_LENGTH];
-                    size_t msg_len = decoder.decode_last_frame(noc, rx_frame.data, rx_frame.len, crc, msg_tmp);
+                    size_t msg_len = decoder.decode_last_frame(noc, rx_frame.data, rx_frame.can_dlc, crc, msg_tmp);
 
                     if (msg_len == 0) {
                         // Decode failed, drop the frame
@@ -355,7 +361,7 @@ bool CanAgent::send_message(
         bool is_extended;
         unsigned dlc;
         canmore_msg_encode_next(&encoder, frame.data, &dlc, &frame.can_id, &is_extended);
-        frame.len = dlc;
+        frame.can_dlc = dlc;
 
         if (is_extended){
             frame.can_id |= CAN_EFF_FLAG;
@@ -395,7 +401,8 @@ bool CanAgent::send_message(
 bool CanAgent::handle_error(
         TransportRc /*transport_rc*/)
 {
-    return fini() && init();
+    fini();
+    return false;
 }
 
 } // namespace uxr
