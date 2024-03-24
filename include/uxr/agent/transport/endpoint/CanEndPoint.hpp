@@ -26,7 +26,7 @@ public:
     CanEndPoint() = default;
 
     CanEndPoint(
-            uint32_t client_id)
+            uint8_t client_id)
         : client_id_{client_id}
     {}
 
@@ -43,10 +43,10 @@ public:
         return os;
     }
 
-    uint32_t get_client_id() const { return client_id_; }
+    uint8_t get_client_id() const { return client_id_; }
 
 private:
-    uint32_t client_id_;
+    uint8_t client_id_;
 };
 
 } // namespace uxr

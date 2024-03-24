@@ -1190,23 +1190,23 @@ template<> inline bool ArgumentParser<PseudoTerminalAgent>::launch_agent()
 }
 
 #ifdef UAGENT_SOCKETCAN_PROFILE
-template<> inline bool ArgumentParser<CanAgent>::launch_agent()
+template<> inline bool ArgumentParser<CanAgentWrapper>::launch_agent()
 {
-    std::vector<uint32_t> client_ids;
+    std::vector<uint8_t> client_ids;
 
     std::vector<std::string> client_ids_str = can_args_.client_ids();
 
     for(std::string client_id_str : client_ids_str) {
         char* end;
-        uint32_t client_id = strtoul(client_id_str.c_str(), &end, 16);
+        unsigned long client_id = strtoul(client_id_str.c_str(), &end, 10);
 
-        if (end != client_id_str.c_str() && *end == '\0') {
+        if (end != client_id_str.c_str() && *end == '\0' && client_id >= 1 && client_id < 32) {
             client_ids.push_back(client_id);
         } else {
             std::cerr << "Invalid client ID: " << client_id_str << std::endl;
         }
     }
-    agent_server_.reset(new CanAgent(
+    agent_server_.reset(createNewCanAgent(
             can_args_.dev().c_str(), client_ids, utils::get_mw_kind(common_args_.middleware())));
     if (agent_server_->start())
     {

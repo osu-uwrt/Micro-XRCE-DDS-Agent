@@ -3,7 +3,8 @@
     "type": "cmake",
     "dependencies":[
         "fastcdr",
-        "fastrtps"
+        "fastrtps",
+        "titan_canmore"
     ],
     "cmake-args":[
         "-DUAGENT_ISOLATED_INSTALL=OFF",

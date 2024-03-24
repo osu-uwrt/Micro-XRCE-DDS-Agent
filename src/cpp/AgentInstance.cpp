@@ -68,7 +68,7 @@ bool AgentInstance::create(
 #ifdef UAGENT_SOCKETCAN_PROFILE
         case agent::TransportKind::CAN:
         {
-            agent_thread_ = std::move(agent::create_agent_thread<CanAgent>(argc, argv, exit_signal, valid_transport));
+            agent_thread_ = std::move(agent::create_agent_thread<CanAgentWrapper>(argc, argv, exit_signal, valid_transport));
             break;
         }
 #endif // UAGENT_SOCKETCAN_PROFILE
@@ -117,7 +117,7 @@ void AgentInstance::stop()
     {
         exit_signal.notify_all();
         agent_thread_.join();
-    }    
+    }
 }
 #endif
 
