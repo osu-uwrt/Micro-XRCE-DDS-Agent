@@ -23,6 +23,7 @@ namespace uxr {
 
 #cmakedefine UAGENT_FAST_PROFILE
 #cmakedefine UAGENT_CED_PROFILE
+#cmakedefine UAGENT_ZENOH_PROFILE
 #cmakedefine UAGENT_DISCOVERY_PROFILE
 #ifdef UAGENT_CED_PROFILE
 #cmakedefine UAGENT_P2P_PROFILE

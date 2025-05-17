@@ -42,6 +42,10 @@ public:
     #ifdef UAGENT_CED_PROFILE
         CED,
     #endif
+
+    #ifdef UAGENT_ZENOH_PROFILE
+        ZENOH,
+    #endif
     };
 
     Middleware() = default;

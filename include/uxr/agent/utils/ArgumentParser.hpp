@@ -465,7 +465,7 @@ public:
     CommonArgs()
         : help_("-h", "--help", ArgumentKind::NO_VALUE)
         , middleware_("-m", "--middleware", std::string(DEFAULT_MIDDLEWARE),
-            {"dds", "ced", "rtps"})
+            {"dds", "ced", "rtps", "zenoh"})
         , refs_("-r", "--refs")
         , verbose_("-v", "--verbose", static_cast<uint16_t>(DEFAULT_VERBOSE_LEVEL),
             {0, 1, 2, 3, 4, 5, 6})

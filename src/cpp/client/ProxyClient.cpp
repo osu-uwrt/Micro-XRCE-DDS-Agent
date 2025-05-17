@@ -31,6 +31,10 @@
 #include <uxr/agent/middleware/ced/CedMiddleware.hpp>
 #endif
 
+#ifdef UAGENT_ZENOH_PROFILE
+#include <uxr/agent/middleware/zenoh/ZenohMiddleware.hpp>
+#endif
+
 namespace eprosima {
 namespace uxr {
 
@@ -75,6 +79,13 @@ ProxyClient::ProxyClient(
         case Middleware::Kind::CED:
         {
             middleware_.reset(new CedMiddleware(conversion::clientkey_to_raw(representation.client_key())));
+            break;
+        }
+#endif
+#ifdef UAGENT_ZENOH_PROFILE
+        case Middleware::Kind::ZENOH:
+        {
+            middleware_.reset(new ZenohMiddleware());
             break;
         }
 #endif
