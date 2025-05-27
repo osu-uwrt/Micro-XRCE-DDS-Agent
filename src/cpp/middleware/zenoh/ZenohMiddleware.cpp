@@ -33,7 +33,8 @@ namespace uxr {
         {
             try
             {
-                zenoh::Config zconf = zenoh::Config::create_default(); //TODO: load from file using env var
+                // zenoh::Config zconf = zenoh::Config::create_default(); //TODO: load from file using env var
+                zenoh::Config zconf = zenoh::Config::from_file("/home/brach/zenohcfg/DEFAULT_RMW_ZENOH_SESSION_CONFIG.json5");
                 participants_.emplace( participant_id, std::make_shared<zenoh::Session>(std::move(zconf)) );
                 return true;
             } catch(zenoh::ZException& e)
@@ -41,7 +42,7 @@ namespace uxr {
                 UXR_AGENT_LOG_CRITICAL(
                     UXR_DECORATE_RED("Zenoh init error"),
                     "what(): " + std::string(e.what()) +
-                    ", participant_id: ", std::to_string(participant_id), 0);
+                    ", participant_id: " + std::to_string(participant_id), 0);
             }
         }
 

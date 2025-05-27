@@ -113,14 +113,6 @@ if(UAGENT_LOGGER_PROFILE)
     list(APPEND _deps "spdlog\;${_spdlog_version}")
 endif()
 
-if(UAGENT_SOCKETCAN_PROFILE)
-    find_package(titan_canmore REQUIRED)
-endif()
-
-if(UAGENT_ZENOH_PROFILE)
-    find_package(zenoh_cpp_vendor REQUIRED)
-endif()
-
 ###############################################################################
 # Project
 ###############################################################################
@@ -161,6 +153,16 @@ foreach(d ${_deps})
     set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} ${PROJECT_BINARY_DIR}/temp_install/${_name}-${_version})
     find_package(${_name} ${_version} REQUIRED)
 endforeach()
+
+# I could do it their way above or I could do it my way here. One is much easier
+if(UAGENT_SOCKETCAN_PROFILE)
+    find_package(titan_canmore REQUIRED)
+endif()
+
+if(UAGENT_ZENOH_PROFILE)
+    find_package(rcl REQUIRED)
+    find_package(zenoh_cpp_vendor REQUIRED)
+endif()
 
 ###############################################################################
 # Sources
@@ -312,6 +314,7 @@ target_link_libraries(${PROJECT_NAME}
     PRIVATE
         $<$<BOOL:${UAGENT_FAST_PROFILE}>:fastrtps>
         $<$<BOOL:${UAGENT_ZENOH_PROFILE}>:zenohcxx::zenohc>
+        $<$<BOOL:${UAGENT_ZENOH_PROFILE}>:rcl::rcl>
         $<$<BOOL:${UAGENT_P2P_PROFILE}>:microxrcedds_client>
         $<$<BOOL:${UAGENT_P2P_PROFILE}>:microcdr>
         $<$<BOOL:${UAGENT_SOCKETCAN_PROFILE}>:titan_canmore::canmore>
