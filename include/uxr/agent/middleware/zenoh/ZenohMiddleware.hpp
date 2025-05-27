@@ -12,15 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef UXR__AGENT__MIDDLEWARE__ZENOH__MIDDLEWARE_HPP_
-#define UXR__AGENT__MIDDLEWARE__ZENOH__MIDDLEWARE_HPP_
+#ifndef UXR__AGENT__MIDDLEWARE__RMW__MIDDLEWARE_HPP_
+#define UXR__AGENT__MIDDLEWARE__RMW__MIDDLEWARE_HPP_
 
 #include <uxr/agent/middleware/Middleware.hpp>
 
 #include <unordered_map>
 #include <memory>
-
-#include <zenoh.hxx>
 
 namespace eprosima {
 namespace uxr {
@@ -28,12 +26,12 @@ namespace middleware {
 class CallbackFactory;
 } // namespace middleware
 
-class ZenohMiddleware : public Middleware
+class RmwMiddleware : public Middleware
 {
 public:
-    ZenohMiddleware();
-    ZenohMiddleware(bool intraprocess_enabled);
-    ~ZenohMiddleware() final = default;
+    RmwMiddleware();
+    RmwMiddleware(bool intraprocess_enabled);
+    ~RmwMiddleware() final = default;
 
 /**********************************************************************************************************************
  * Create functions.
@@ -278,12 +276,7 @@ public:
 
 
     private:
-    std::unordered_map<uint16_t, std::shared_ptr<zenoh::Session>> participants_;
-    std::unordered_map<uint16_t, std::string> topics_;
-    std::unordered_map<uint16_t, uint16_t> publishers_; //this lterally maps the publisher to the participant
-    std::unordered_map<uint16_t, uint16_t> subscribers_; //ditto ^
-    std::unordered_map<uint16_t, zenoh::Publisher> datawriters_;
-    std::unordered_map<uint16_t, zenoh::Subscriber<void>> datareaders_;
+    
 
     middleware::CallbackFactory& callback_factory_;
 };
@@ -291,4 +284,4 @@ public:
 } // namespace uxr
 } // namespace eprosima
 
-#endif // UXR__AGENT__MIDDLEWARE__ZENOH__MIDDLEWARE_HPP_
+#endif // UXR__AGENT__MIDDLEWARE__RMW__MIDDLEWARE_HPP_

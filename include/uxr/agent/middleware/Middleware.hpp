@@ -43,8 +43,8 @@ public:
         CED,
     #endif
 
-    #ifdef UAGENT_ZENOH_PROFILE
-        ZENOH,
+    #ifdef UAGENT_RMW_PROFILE
+        RMW,
     #endif
     };
 

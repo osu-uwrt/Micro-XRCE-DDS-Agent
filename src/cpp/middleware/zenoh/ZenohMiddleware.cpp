@@ -1,4 +1,4 @@
-#include <uxr/agent/middleware/zenoh/ZenohMiddleware.hpp>
+#include <uxr/agent/middleware/rmw/RmwMiddleware.hpp>
 #include <uxr/agent/logger/Logger.hpp>
 #include <uxr/agent/utils/Conversion.hpp>
 #include <uxr/agent/middleware/utils/Callbacks.hpp>
@@ -6,7 +6,7 @@
 namespace eprosima {
 namespace uxr {
 
-    ZenohMiddleware::ZenohMiddleware()
+    RmwMiddleware::RmwMiddleware()
      : callback_factory_(callback_factory_.getInstance()),
        participants_{},
        topics_{},
@@ -16,39 +16,22 @@ namespace uxr {
        datareaders_{}
     {
         UXR_AGENT_LOG_INFO(
-            UXR_DECORATE_GREEN("zenoh plugin active"),
-            "Zenoh set as active middleware.", "");
+            UXR_DECORATE_GREEN("rmw plugin active"),
+            "Universal RMW set as active middleware.", "");
     }
 
     /**********************************************************************************************************************
      * Create functions.
      **********************************************************************************************************************/
-    bool ZenohMiddleware::create_participant_by_ref(
+    bool RmwMiddleware::create_participant_by_ref(
         uint16_t participant_id,
         int16_t domain_id,
         const std::string& ref)
     {
-        auto it = participants_.find(participant_id);
-        if(it == participants_.end())
-        {
-            try
-            {
-                zenoh::Config zconf = zenoh::Config::create_default(); //TODO: load from file using env var
-                participants_.emplace( participant_id, std::make_shared<zenoh::Session>(std::move(zconf)) );
-                return true;
-            } catch(zenoh::ZException& e)
-            {
-                UXR_AGENT_LOG_CRITICAL(
-                    UXR_DECORATE_RED("Zenoh init error"),
-                    "what(): " + std::string(e.what()) +
-                    ", participant_id: ", std::to_string(participant_id), 0);
-            }
-        }
-
-        return false;
+        return true;
     }
 
-    bool ZenohMiddleware::create_participant_by_xml(
+    bool RmwMiddleware::create_participant_by_xml(
         uint16_t participant_id,
         int16_t domain_id,
         const std::string& xml)
@@ -56,14 +39,14 @@ namespace uxr {
         return create_participant_by_ref(participant_id, domain_id, "");
     }
 
-    bool ZenohMiddleware::create_participant_by_bin(
+    bool RmwMiddleware::create_participant_by_bin(
         uint16_t participant_id,
         const dds::xrce::OBJK_DomainParticipant_Binary& participant_xrce)
     {
         return create_participant_by_ref(participant_id, participant_xrce.domain_id(), "");
     }
 
-    bool ZenohMiddleware::create_topic_by_ref(
+    bool RmwMiddleware::create_topic_by_ref(
         uint16_t topic_id,
         uint16_t participant_id,
         const std::string& ref)
@@ -78,7 +61,7 @@ namespace uxr {
         return false;
     }
 
-    bool ZenohMiddleware::create_topic_by_xml(
+    bool RmwMiddleware::create_topic_by_xml(
         uint16_t topic_id,
         uint16_t participant_id,
         const std::string& xml)
@@ -86,7 +69,7 @@ namespace uxr {
         return create_topic_by_ref(topic_id, participant_id, xml);
     }
 
-    bool ZenohMiddleware::create_topic_by_bin(
+    bool RmwMiddleware::create_topic_by_bin(
         uint16_t topic_id,
         uint16_t participant_id,
         const dds::xrce::OBJK_Topic_Binary& topic_xrce)
@@ -94,7 +77,7 @@ namespace uxr {
         return create_topic_by_ref(topic_id, participant_id, topic_xrce.topic_name());
     }
 
-    bool ZenohMiddleware::create_publisher_by_xml(
+    bool RmwMiddleware::create_publisher_by_xml(
         uint16_t publisher_id,
         uint16_t participant_id,
         const std::string&)
@@ -109,7 +92,7 @@ namespace uxr {
         return false;
     }
 
-    bool ZenohMiddleware::create_publisher_by_bin(
+    bool RmwMiddleware::create_publisher_by_bin(
         uint16_t publisher_id,
         uint16_t participant_id,
         const dds::xrce::OBJK_Publisher_Binary& publisher_xrce)
@@ -118,7 +101,7 @@ namespace uxr {
         return create_publisher_by_xml(publisher_id, participant_id, "");
     }
 
-    bool ZenohMiddleware::create_subscriber_by_xml(
+    bool RmwMiddleware::create_subscriber_by_xml(
         uint16_t subscriber_id,
         uint16_t participant_id,
         const std::string&)
@@ -133,7 +116,7 @@ namespace uxr {
         return false;
     }
 
-    bool ZenohMiddleware::create_subscriber_by_bin(
+    bool RmwMiddleware::create_subscriber_by_bin(
         uint16_t subscriber_id,
         uint16_t participant_id,
         const dds::xrce::OBJK_Subscriber_Binary& subscriber_xrce)
@@ -141,41 +124,15 @@ namespace uxr {
         return create_subscriber_by_xml(subscriber_id, participant_id, "");
     }
 
-    bool ZenohMiddleware::create_datawriter_by_ref(
+    bool RmwMiddleware::create_datawriter_by_ref(
         uint16_t datawriter_id,
         uint16_t publisher_id,
         const std::string& ref)
     {
-        //make sure publisher exists and look up participant id
-        auto pubit = publishers_.find(publisher_id);
-        if(pubit == publishers_.end())
-        {
-            return false;
-        }
-
-        uint16_t participant_id = pubit->second;
-
-        //make sure participant exists
-        auto partit = participants_.find(participant_id);
-        if(partit == participants_.end())
-        {
-            return false;
-        }
-
-        std::shared_ptr<zenoh::Session> sess = partit->second;
-
-        //now create datawriter if it does not already exist
-        auto dwit = datawriters_.find(datawriter_id);
-        if(dwit == datawriters_.end())
-        {
-            datawriters_.emplace(datawriter_id, sess->declare_publisher(zenoh::KeyExpr(ref)));
-            return true;
-        }
-
-        return false;
+        return true;
     }
 
-    bool ZenohMiddleware::create_datawriter_by_xml(
+    bool RmwMiddleware::create_datawriter_by_xml(
         uint16_t datawriter_id,
         uint16_t publisher_id,
         const std::string& xml)
@@ -183,7 +140,7 @@ namespace uxr {
         return create_datawriter_by_ref(datawriter_id, publisher_id, xml);
     }
 
-    bool ZenohMiddleware::create_datawriter_by_bin(
+    bool RmwMiddleware::create_datawriter_by_bin(
         uint16_t datawriter_id,
         uint16_t publisher_id,
         const dds::xrce::OBJK_DataWriter_Binary& datawriter_xrce)
@@ -199,48 +156,15 @@ namespace uxr {
         return false;
     }
 
-    bool ZenohMiddleware::create_datareader_by_ref(
+    bool RmwMiddleware::create_datareader_by_ref(
         uint16_t datareader_id,
         uint16_t subscriber_id,
         const std::string& ref)
     {
-        std::cout << "reader to topic " << ref << std::endl;
-        //make sure publisher exists and look up participant id
-        auto subit = subscribers_.find(subscriber_id);
-        if(subit == subscribers_.end())
-        {
-            return false;
-        }
-
-        uint16_t participant_id = subit->second;
-
-        //make sure participant exists
-        auto partit = participants_.find(participant_id);
-        if(partit == participants_.end())
-        {
-            return false;
-        }
-
-        std::shared_ptr<zenoh::Session> sess = partit->second;
-
-        //now create datawriter if it does not already exist
-        auto drit = datareaders_.find(datareader_id);
-        if(drit == datareaders_.end())
-        {
-            datareaders_.emplace(datareader_id, sess->declare_subscriber(
-                zenoh::KeyExpr(ref), 
-                [](const zenoh::Sample& sample) {
-                    std::cout << "Received: " << sample.get_payload().as_string() << std::endl;
-                },
-                zenoh::closures::none));
-
-            return true;
-        }
-
-        return false;
+        return true;
     }
 
-    bool ZenohMiddleware::create_datareader_by_xml(
+    bool RmwMiddleware::create_datareader_by_xml(
         uint16_t datareader_id,
         uint16_t subscriber_id,
         const std::string& xml)
@@ -248,7 +172,7 @@ namespace uxr {
         return create_datareader_by_ref(datareader_id, subscriber_id, xml);
     }
 
-    bool ZenohMiddleware::create_datareader_by_bin(
+    bool RmwMiddleware::create_datareader_by_bin(
         uint16_t datareader_id,
         uint16_t subscriber_id,
         const dds::xrce::OBJK_DataReader_Binary& datareader_xrce)
@@ -264,7 +188,7 @@ namespace uxr {
         return false;
     }
 
-    bool ZenohMiddleware::create_requester_by_ref(
+    bool RmwMiddleware::create_requester_by_ref(
         uint16_t requester_id,
         uint16_t participant_id,
         const std::string& ref)
@@ -273,7 +197,7 @@ namespace uxr {
         return true;
     }
 
-    bool ZenohMiddleware::create_requester_by_xml(
+    bool RmwMiddleware::create_requester_by_xml(
         uint16_t requester_id,
         uint16_t participant_id,
         const std::string& xml)
@@ -282,7 +206,7 @@ namespace uxr {
         return true;
     }
 
-    bool ZenohMiddleware::create_requester_by_bin(
+    bool RmwMiddleware::create_requester_by_bin(
         uint16_t requester_id,
         uint16_t participant_id,
         const dds::xrce::OBJK_Requester_Binary& requester_xrce)
@@ -291,7 +215,7 @@ namespace uxr {
         return true;
     }
 
-    bool ZenohMiddleware::create_replier_by_ref(
+    bool RmwMiddleware::create_replier_by_ref(
         uint16_t replier_id,
         uint16_t participant_id,
         const std::string& ref)
@@ -300,7 +224,7 @@ namespace uxr {
         return true;
     }
 
-    bool ZenohMiddleware::create_replier_by_xml(
+    bool RmwMiddleware::create_replier_by_xml(
         uint16_t replier_id,
         uint16_t participant_id,
         const std::string& xml)
@@ -309,7 +233,7 @@ namespace uxr {
         return true;
     }
 
-    bool ZenohMiddleware::create_replier_by_bin(
+    bool RmwMiddleware::create_replier_by_bin(
         uint16_t replier_id,
         uint16_t participant_id,
         const dds::xrce::OBJK_Replier_Binary& replier_xrce)
@@ -321,7 +245,7 @@ namespace uxr {
     /**********************************************************************************************************************
      * Delete functions.
      **********************************************************************************************************************/
-    bool ZenohMiddleware::delete_participant(uint16_t participant_id)
+    bool RmwMiddleware::delete_participant(uint16_t participant_id)
     {
         std::cout << "del part" << std::endl;
 
@@ -335,43 +259,43 @@ namespace uxr {
         return false;
     }
 
-    bool ZenohMiddleware::delete_topic(uint16_t topic_id)
+    bool RmwMiddleware::delete_topic(uint16_t topic_id)
     {
         std::cout << "del top" << std::endl;
         return true;
     }
 
-    bool ZenohMiddleware::delete_publisher(uint16_t publisher_id)
+    bool RmwMiddleware::delete_publisher(uint16_t publisher_id)
     {
         std::cout << "del pub" << std::endl;
         return true;
     }
 
-    bool ZenohMiddleware::delete_subscriber(uint16_t subscriber_id)
+    bool RmwMiddleware::delete_subscriber(uint16_t subscriber_id)
     {
         std::cout << "del sub" << std::endl;
         return true;
     }
 
-    bool ZenohMiddleware::delete_datawriter(uint16_t datawriter_id)
+    bool RmwMiddleware::delete_datawriter(uint16_t datawriter_id)
     {
         std::cout << "del dw" << std::endl;
         return true;
     }
 
-    bool ZenohMiddleware::delete_datareader(uint16_t datareader_id)
+    bool RmwMiddleware::delete_datareader(uint16_t datareader_id)
     {
         std::cout << "del dr" << std::endl;
         return true;
     }
 
-    bool ZenohMiddleware::delete_requester(uint16_t requester_id)
+    bool RmwMiddleware::delete_requester(uint16_t requester_id)
     {
         std::cout << "del req" << std::endl;
         return true;
     }
 
-    bool ZenohMiddleware::delete_replier(uint16_t replier_id)
+    bool RmwMiddleware::delete_replier(uint16_t replier_id)
     {
         std::cout << "del req" << std::endl;
         return true;
@@ -380,7 +304,7 @@ namespace uxr {
     /**********************************************************************************************************************
      * Write/Read functions.
      **********************************************************************************************************************/
-    bool ZenohMiddleware::write_data(
+    bool RmwMiddleware::write_data(
         uint16_t datawriter_id,
         const std::vector<uint8_t>& data)
     {
@@ -388,7 +312,7 @@ namespace uxr {
         return true;
     }
 
-    bool ZenohMiddleware::write_request(
+    bool RmwMiddleware::write_request(
         uint16_t requester_id,
         uint32_t sequence_number,
         const std::vector<uint8_t>& data)
@@ -397,7 +321,7 @@ namespace uxr {
         return true;
     }
 
-    bool ZenohMiddleware::write_reply(
+    bool RmwMiddleware::write_reply(
         uint16_t replier_id,
         const std::vector<uint8_t>& data)
     {
@@ -405,7 +329,7 @@ namespace uxr {
         return true;
     }
 
-    bool ZenohMiddleware::read_data(
+    bool RmwMiddleware::read_data(
         uint16_t datareader_id,
         std::vector<uint8_t>& data,
         std::chrono::milliseconds timeout)
@@ -414,7 +338,7 @@ namespace uxr {
         return true;
     }
 
-    bool ZenohMiddleware::read_request(
+    bool RmwMiddleware::read_request(
         uint16_t replier_id,
         std::vector<uint8_t>& data,
         std::chrono::milliseconds timeout)
@@ -423,7 +347,7 @@ namespace uxr {
         return true;
     }
 
-    bool ZenohMiddleware::read_reply(
+    bool RmwMiddleware::read_reply(
         uint16_t reply_id,
         uint32_t& sequence_number,
         std::vector<uint8_t>& data,
@@ -436,7 +360,7 @@ namespace uxr {
     /**********************************************************************************************************************
      * Matched functions.
      **********************************************************************************************************************/
-    bool ZenohMiddleware::matched_participant_from_ref(
+    bool RmwMiddleware::matched_participant_from_ref(
         uint16_t participant_id,
         int16_t domain_id,
         const std::string& ref) const
@@ -445,7 +369,7 @@ namespace uxr {
         return true;
     }
 
-    bool ZenohMiddleware::matched_participant_from_xml(
+    bool RmwMiddleware::matched_participant_from_xml(
         uint16_t participant_id,
         int16_t domain_id,
         const std::string& xml) const
@@ -454,7 +378,7 @@ namespace uxr {
         return true;
     }
 
-    bool ZenohMiddleware::matched_participant_from_bin(
+    bool RmwMiddleware::matched_participant_from_bin(
         uint16_t participant_id,
         int16_t domain_id,
         const dds::xrce::OBJK_DomainParticipant_Binary& participant_xrce ) const
@@ -463,7 +387,7 @@ namespace uxr {
         return true;
     }
 
-    bool ZenohMiddleware::matched_topic_from_ref(
+    bool RmwMiddleware::matched_topic_from_ref(
         uint16_t topic_id,
         const std::string& ref) const
     {
@@ -471,7 +395,7 @@ namespace uxr {
         return true;
     }
 
-    bool ZenohMiddleware::matched_topic_from_xml(
+    bool RmwMiddleware::matched_topic_from_xml(
         uint16_t topic_id,
         const std::string& xml) const
     {
@@ -479,7 +403,7 @@ namespace uxr {
         return true;
     }
 
-    bool ZenohMiddleware::matched_topic_from_bin(
+    bool RmwMiddleware::matched_topic_from_bin(
         uint16_t topic_id,
         const dds::xrce::OBJK_Topic_Binary& topic_xrce) const
     {
@@ -487,7 +411,7 @@ namespace uxr {
         return true;
     }
 
-    bool ZenohMiddleware::matched_datawriter_from_ref(
+    bool RmwMiddleware::matched_datawriter_from_ref(
         uint16_t datawriter_id,
         const std::string& ref) const
     {
@@ -495,7 +419,7 @@ namespace uxr {
         return true;
     }
 
-    bool ZenohMiddleware::matched_datawriter_from_xml(
+    bool RmwMiddleware::matched_datawriter_from_xml(
         uint16_t datawriter_id,
         const std::string& xml) const
     {
@@ -503,7 +427,7 @@ namespace uxr {
         return true;
     }
 
-    bool ZenohMiddleware::matched_datawriter_from_bin(
+    bool RmwMiddleware::matched_datawriter_from_bin(
         uint16_t datawriter_id,
         const dds::xrce::OBJK_DataWriter_Binary& datawriter_xrce) const
     {
@@ -511,7 +435,7 @@ namespace uxr {
         return true;
     }
 
-    bool ZenohMiddleware::matched_datareader_from_ref(
+    bool RmwMiddleware::matched_datareader_from_ref(
         uint16_t datareader_id,
         const std::string& ref) const
     {
@@ -519,7 +443,7 @@ namespace uxr {
         return true;
     }
 
-    bool ZenohMiddleware::matched_datareader_from_xml(
+    bool RmwMiddleware::matched_datareader_from_xml(
         uint16_t datareader_id,
         const std::string& xml) const
     {
@@ -527,7 +451,7 @@ namespace uxr {
         return true;
     }
 
-    bool ZenohMiddleware::matched_datareader_from_bin(
+    bool RmwMiddleware::matched_datareader_from_bin(
         uint16_t datareader_id,
         const dds::xrce::OBJK_DataReader_Binary& datareader_xrce) const
     {
@@ -535,7 +459,7 @@ namespace uxr {
         return true;
     }
 
-    bool ZenohMiddleware::matched_requester_from_ref(
+    bool RmwMiddleware::matched_requester_from_ref(
         uint16_t participant_id,
         const std::string& ref) const
     {
@@ -543,7 +467,7 @@ namespace uxr {
         return true;
     }
 
-    bool ZenohMiddleware::matched_requester_from_xml(
+    bool RmwMiddleware::matched_requester_from_xml(
         uint16_t participant_id,
         const std::string& xml) const
     {
@@ -551,7 +475,7 @@ namespace uxr {
         return true;
     }
 
-    bool ZenohMiddleware::matched_requester_from_bin(
+    bool RmwMiddleware::matched_requester_from_bin(
         uint16_t requester_id,
         const dds::xrce::OBJK_Requester_Binary& requester_xrce) const
     {
@@ -559,7 +483,7 @@ namespace uxr {
         return true;
     }
 
-    bool ZenohMiddleware::matched_replier_from_ref(
+    bool RmwMiddleware::matched_replier_from_ref(
         uint16_t participant_id,
         const std::string& ref) const
     {
@@ -567,7 +491,7 @@ namespace uxr {
         return true;
     }
 
-    bool ZenohMiddleware::matched_replier_from_xml(
+    bool RmwMiddleware::matched_replier_from_xml(
         uint16_t participant_id,
         const std::string& xml) const
     {
@@ -575,7 +499,7 @@ namespace uxr {
         return true;
     }
 
-    bool ZenohMiddleware::matched_replier_from_bin(
+    bool RmwMiddleware::matched_replier_from_bin(
         uint16_t replier_id,
         const dds::xrce::OBJK_Replier_Binary& replier_xrce) const
     {

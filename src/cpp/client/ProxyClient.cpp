@@ -31,8 +31,8 @@
 #include <uxr/agent/middleware/ced/CedMiddleware.hpp>
 #endif
 
-#ifdef UAGENT_ZENOH_PROFILE
-#include <uxr/agent/middleware/zenoh/ZenohMiddleware.hpp>
+#ifdef UAGENT_RMW_PROFILE
+#include <uxr/agent/middleware/rmw/RmwMiddleware.hpp>
 #endif
 
 namespace eprosima {
@@ -82,10 +82,10 @@ ProxyClient::ProxyClient(
             break;
         }
 #endif
-#ifdef UAGENT_ZENOH_PROFILE
-        case Middleware::Kind::ZENOH:
+#ifdef UAGENT_RMW_PROFILE
+        case Middleware::Kind::RMW:
         {
-            middleware_.reset(new ZenohMiddleware());
+            middleware_.reset(new RmwMiddleware());
             break;
         }
 #endif

@@ -32,7 +32,7 @@ option(UAGENT_USE_SYSTEM_FASTCDR "Force find and use system installed Fast-CDR."
 option(UAGENT_USE_SYSTEM_LOGGER "Force find and use system installed spdlog." OFF)
 option(UAGENT_FAST_PROFILE "Build FastMiddleware profile." ON)
 option(UAGENT_CED_PROFILE "Build CedMiddleware profile." ON)
-option(UAGENT_ZENOH_PROFILE "Build Zenoh profile" ON)
+option(UAGENT_RMW_PROFILE "Build RMW profile" ON)
 option(UAGENT_DISCOVERY_PROFILE "Build Discovery profile." ON)
 option(UAGENT_P2P_PROFILE "Build P2P discovery profile." ON)
 option(UAGENT_SOCKETCAN_PROFILE "Build Agent CAN FD transport." ON)
@@ -117,8 +117,8 @@ if(UAGENT_SOCKETCAN_PROFILE)
     find_package(titan_canmore REQUIRED)
 endif()
 
-if(UAGENT_ZENOH_PROFILE)
-    find_package(zenoh_cpp_vendor REQUIRED)
+if(UAGENT_RMW_PROFILE)
+
 endif()
 
 ###############################################################################
@@ -226,7 +226,7 @@ set(SRCS
     $<$<BOOL:${UAGENT_FAST_PROFILE}>:src/cpp/middleware/fastdds/FastDDSMiddleware.cpp>
     $<$<BOOL:${UAGENT_CED_PROFILE}>:src/cpp/middleware/ced/CedEntities.cpp>
     $<$<BOOL:${UAGENT_CED_PROFILE}>:src/cpp/middleware/ced/CedMiddleware.cpp>
-    $<$<BOOL:${UAGENT_ZENOH_PROFILE}>:src/cpp/middleware/zenoh/ZenohMiddleware.cpp>
+    $<$<BOOL:${UAGENT_RMW_PROFILE}>:src/cpp/middleware/rmw/RmwMiddleware.cpp>
     $<$<BOOL:${UAGENT_P2P_PROFILE}>:src/cpp/transport/p2p/AgentDiscoverer.cpp>
     $<$<BOOL:${UAGENT_P2P_PROFILE}>:src/cpp/p2p/InternalClientManager.cpp>
     $<$<BOOL:${UAGENT_P2P_PROFILE}>:src/cpp/p2p/InternalClient.cpp>
@@ -311,7 +311,6 @@ target_link_libraries(${PROJECT_NAME}
         $<$<BOOL:${UAGENT_LOGGER_PROFILE}>:spdlog::spdlog>
     PRIVATE
         $<$<BOOL:${UAGENT_FAST_PROFILE}>:fastrtps>
-        $<$<BOOL:${UAGENT_ZENOH_PROFILE}>:zenohcxx::zenohc>
         $<$<BOOL:${UAGENT_P2P_PROFILE}>:microxrcedds_client>
         $<$<BOOL:${UAGENT_P2P_PROFILE}>:microcdr>
         $<$<BOOL:${UAGENT_SOCKETCAN_PROFILE}>:titan_canmore::canmore>

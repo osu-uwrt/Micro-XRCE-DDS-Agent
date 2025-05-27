@@ -91,10 +91,10 @@ eprosima::uxr::Middleware::Kind eprosima::uxr::agent::parser::utils::get_mw_kind
         return eprosima::uxr::Middleware::Kind::CED;
     }
 #endif
-#ifdef UAGENT_ZENOH_PROFILE
-    if("zenoh" == kind)
+#ifdef UAGENT_RMW_PROFILE
+    if("rmw" == kind)
     {
-        return eprosima::uxr::Middleware::Kind::ZENOH;
+        return eprosima::uxr::Middleware::Kind::RMW;
     }
 #endif
     return eprosima::uxr::Middleware::Kind::NONE;
