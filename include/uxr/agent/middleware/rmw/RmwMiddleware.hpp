@@ -20,6 +20,33 @@
 #include <unordered_map>
 #include <memory>
 
+#include <rcl/rcl.h>
+
+struct TopicInfo
+{
+    uint16_t participant_id;
+    std::string
+        topic_name,
+        topic_type;
+};
+
+struct PubSubIngredients
+{
+    std::string
+        topic_name,
+        topic_type;
+
+    std::shared_ptr<rcl_node_t> node;
+};
+
+template<typename T>
+struct PubSubInfo
+{
+    std::string verified_type_name; //user must guarantee that this type name is in ROSIDL_TYPES
+    std::shared_ptr<rcl_node_t> node;
+    std::shared_ptr<T> t;
+};
+
 namespace eprosima {
 namespace uxr {
 namespace middleware {
@@ -30,8 +57,7 @@ class RmwMiddleware : public Middleware
 {
 public:
     RmwMiddleware();
-    RmwMiddleware(bool intraprocess_enabled);
-    ~RmwMiddleware() final = default;
+    ~RmwMiddleware();
 
 /**********************************************************************************************************************
  * Create functions.
@@ -276,7 +302,16 @@ public:
 
 
     private:
-    
+    bool get_pubsub_ingredients_by_topic_id(uint16_t id, PubSubIngredients& ingredients);
+    bool get_pubsub_ingredients_by_topic_id(const std::string id_str, PubSubIngredients& ingredients);
+
+    bool rcl_initted = false;
+    rcl_context_t rcl_context;
+
+    std::unordered_map<uint16_t, std::shared_ptr<rcl_node_t>> participants_;
+    std::unordered_map<uint16_t, TopicInfo> topics_;
+    std::unordered_map<uint16_t, PubSubInfo<rcl_publisher_t>> datawriters_;
+    std::unordered_map<uint16_t, PubSubInfo<rcl_subscription_t>> datareaders_;
 
     middleware::CallbackFactory& callback_factory_;
 };

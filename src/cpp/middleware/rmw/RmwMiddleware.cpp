@@ -1,7 +1,29 @@
 #include <uxr/agent/middleware/rmw/RmwMiddleware.hpp>
+#include <uxr/agent/middleware/rmw/RosidlTypes.hpp>
 #include <uxr/agent/logger/Logger.hpp>
 #include <uxr/agent/utils/Conversion.hpp>
 #include <uxr/agent/middleware/utils/Callbacks.hpp>
+
+#include <rmw/validate_node_name.h>
+#include <fastcdr/FastBuffer.h>
+#include <fastcdr/Cdr.h>
+
+#include <rosidl_typesupport_fastrtps_cpp/identifier.hpp>
+
+#define RCL_RET_CHECK_UXR(expr, ret) \
+    do \
+    { \
+        if(rcl_ret_t __ret = expr != RCL_RET_OK) \
+        { \
+            UXR_AGENT_LOG_CRITICAL( \
+                UXR_DECORATE_RED("rmw plugin error"), \
+                #expr " failed with code " + std::to_string(__ret), ""); \
+            return ret; \
+        } \
+    } while(0)
+
+#define RCL_RET_CHECK_UXR_NO_RET(expr) RCL_RET_CHECK_UXR(expr,)
+#define RCL_RET_CHECK_UXR_RET_FALSE(expr) RCL_RET_CHECK_UXR(expr, false)
 
 namespace eprosima {
 namespace uxr {
@@ -10,14 +32,26 @@ namespace uxr {
      : callback_factory_(callback_factory_.getInstance()),
        participants_{},
        topics_{},
-       publishers_{},
-       subscribers_{},
        datawriters_{},
        datareaders_{}
     {
+        rcl_init_options_t init_options;
+        RCL_RET_CHECK_UXR_NO_RET(rcl_init_options_init(&init_options, rcutils_get_default_allocator()));
+
+        rcl_context = rcl_get_zero_initialized_context();
+        RCL_RET_CHECK_UXR_NO_RET(rcl_init(0, NULL, &init_options, &rcl_context));
+        RCL_RET_CHECK_UXR_NO_RET(rcl_init_options_fini(&init_options));
+        
         UXR_AGENT_LOG_INFO(
             UXR_DECORATE_GREEN("rmw plugin active"),
             "Universal RMW set as active middleware.", "");
+    }
+
+
+    RmwMiddleware::~RmwMiddleware()
+    {
+        RCL_RET_CHECK_UXR_NO_RET(rcl_shutdown(&rcl_context));
+        Middleware::~Middleware();
     }
 
     /**********************************************************************************************************************
@@ -28,6 +62,15 @@ namespace uxr {
         int16_t domain_id,
         const std::string& ref)
     {
+        //referenced from here: https://github.com/ros2/rclcpp/blob/humble/rclcpp/src/rclcpp/node_interfaces/node_base.cpp
+        std::shared_ptr<rcl_node_t> node(new rcl_node_t(rcl_get_zero_initialized_node()));
+        std::string part_name = "xrce_participant_" + std::to_string(participant_id);
+        int ret;
+        size_t invalid_index;
+        RCL_RET_CHECK_UXR_RET_FALSE(rmw_validate_node_name(part_name.c_str(), &ret, &invalid_index));
+        rcl_node_options_t node_options = rcl_node_get_default_options();
+        RCL_RET_CHECK_UXR_RET_FALSE(rcl_node_init(node.get(), part_name.c_str(), "/", &rcl_context, &node_options));
+        participants_.insert({participant_id, node});
         return true;
     }
 
@@ -43,7 +86,7 @@ namespace uxr {
         uint16_t participant_id,
         const dds::xrce::OBJK_DomainParticipant_Binary& participant_xrce)
     {
-        return create_participant_by_ref(participant_id, participant_xrce.domain_id(), "");
+        return create_participant_by_ref(participant_id, participant_xrce.domain_id(), participant_xrce.domain_referente());
     }
 
     bool RmwMiddleware::create_topic_by_ref(
@@ -51,12 +94,12 @@ namespace uxr {
         uint16_t participant_id,
         const std::string& ref)
     {
-        auto it = topics_.find(topic_id);
-        if(it == topics_.end())
-        {
-            topics_.emplace(topic_id, ref);
-            return true;
-        }
+        // auto it = topics_.find(topic_id);
+        // if(it == topics_.end())
+        // {
+        //     topics_.emplace(topic_id, ref);
+        //     return true;
+        // }
 
         return false;
     }
@@ -66,7 +109,7 @@ namespace uxr {
         uint16_t participant_id,
         const std::string& xml)
     {
-        return create_topic_by_ref(topic_id, participant_id, xml);
+        return false;
     }
 
     bool RmwMiddleware::create_topic_by_bin(
@@ -74,7 +117,18 @@ namespace uxr {
         uint16_t participant_id,
         const dds::xrce::OBJK_Topic_Binary& topic_xrce)
     {
-        return create_topic_by_ref(topic_id, participant_id, topic_xrce.topic_name());
+        if(topics_.find(topic_id) == topics_.end())
+        {
+            TopicInfo tinfo;
+            tinfo.participant_id = participant_id;
+            tinfo.topic_name = topic_xrce.topic_name();
+            tinfo.topic_type = topic_xrce.type_name();
+
+            topics_.insert({topic_id, tinfo});
+            return true;
+        }
+
+        return false;
     }
 
     bool RmwMiddleware::create_publisher_by_xml(
@@ -82,14 +136,16 @@ namespace uxr {
         uint16_t participant_id,
         const std::string&)
     {
-        auto it = publishers_.find(publisher_id);
-        if(it == publishers_.end())
-        {
-            publishers_.emplace(publisher_id, participant_id);
-            return true;
-        }
+        // auto it = publishers_.find(publisher_id);
+        // if(it == publishers_.end())
+        // {
+        //     publishers_.emplace(publisher_id, participant_id);
+        //     return true;
+        // }
 
-        return false;
+        // return false;
+
+        return true;
     }
 
     bool RmwMiddleware::create_publisher_by_bin(
@@ -97,7 +153,6 @@ namespace uxr {
         uint16_t participant_id,
         const dds::xrce::OBJK_Publisher_Binary& publisher_xrce)
     {
-        std::cout << "publisher by bin with name " << publisher_xrce.publisher_name() << std::endl;
         return create_publisher_by_xml(publisher_id, participant_id, "");
     }
 
@@ -106,14 +161,16 @@ namespace uxr {
         uint16_t participant_id,
         const std::string&)
     {
-        auto it = subscribers_.find(subscriber_id);
-        if(it == subscribers_.end())
-        {
-            subscribers_.emplace(subscriber_id, participant_id);
-            return true;
-        }
+        // auto it = subscribers_.find(subscriber_id);
+        // if(it == subscribers_.end())
+        // {
+        //     subscribers_.emplace(subscriber_id, participant_id);
+        //     return true;
+        // }
 
-        return false;
+        // return false;
+
+        return true;
     }
 
     bool RmwMiddleware::create_subscriber_by_bin(
@@ -129,6 +186,25 @@ namespace uxr {
         uint16_t publisher_id,
         const std::string& ref)
     {
+        PubSubIngredients pub_ingredients;
+        if(!get_pubsub_ingredients_by_topic_id(ref, pub_ingredients))
+        {
+            return false;
+        }
+
+        const rosidl_message_type_support_t *ts = ROSIDL_TYPES[pub_ingredients.topic_type]->get_typesupport_handle();
+
+        //now create publisher
+        std::shared_ptr<rcl_publisher_t> pub(new rcl_publisher_t(rcl_get_zero_initialized_publisher()));
+        rcl_publisher_options_t pub_ops = rcl_publisher_get_default_options();
+        RCL_RET_CHECK_UXR_RET_FALSE(rcl_publisher_init(pub.get(), pub_ingredients.node.get(), ts, pub_ingredients.topic_name.c_str(), &pub_ops));
+
+        //if we get here then init succeeded, add publisher to map
+        PubSubInfo<rcl_publisher_t> pn;
+        pn.verified_type_name = pub_ingredients.topic_type;
+        pn.node = pub_ingredients.node;
+        pn.t = pub;
+        datawriters_.insert({datawriter_id, pn});
         return true;
     }
 
@@ -150,7 +226,7 @@ namespace uxr {
         auto it = topics_.find(topic_id);
         if(it != topics_.end())
         {
-            return create_datawriter_by_ref(datawriter_id, publisher_id, topics_[topic_id]);
+            return create_datawriter_by_ref(datawriter_id, publisher_id, std::to_string(topic_id));
         }
 
         return false;
@@ -161,6 +237,26 @@ namespace uxr {
         uint16_t subscriber_id,
         const std::string& ref)
     {
+        PubSubIngredients sub_ingredients;
+
+        if(!get_pubsub_ingredients_by_topic_id(ref, sub_ingredients))
+        {
+            return false;
+        }
+
+        const rosidl_message_type_support_t *ts = ROSIDL_TYPES[sub_ingredients.topic_type]->get_typesupport_handle();
+
+        //now create subscription
+        std::shared_ptr<rcl_subscription_t> sub(new rcl_subscription_t(rcl_get_zero_initialized_subscription()));
+        rcl_subscription_options_t sub_ops = rcl_subscription_get_default_options();
+        RCL_RET_CHECK_UXR_RET_FALSE(rcl_subscription_init(sub.get(), sub_ingredients.node.get(), ts, sub_ingredients.topic_name.c_str(), &sub_ops));
+        
+        //if we got here then init succeeded, so add to datareaders
+        PubSubInfo<rcl_subscription_t> sn;
+        sn.verified_type_name = sub_ingredients.topic_type;
+        sn.node = sub_ingredients.node;
+        sn.t = sub;
+        datareaders_.insert({datareader_id, sn});
         return true;
     }
 
@@ -182,7 +278,7 @@ namespace uxr {
         auto it = topics_.find(topic_id);
         if(it != topics_.end())
         {
-            return create_datareader_by_ref(datareader_id, subscriber_id, topics_[topic_id]);
+            return create_datareader_by_ref(datareader_id, subscriber_id, std::to_string(topic_id));
         }
 
         return false;
@@ -247,45 +343,81 @@ namespace uxr {
      **********************************************************************************************************************/
     bool RmwMiddleware::delete_participant(uint16_t participant_id)
     {
-        std::cout << "del part" << std::endl;
-
         auto it = participants_.find(participant_id);
-        if(it != participants_.end())
+        if(it == participants_.end())
         {
-            participants_.erase(participant_id);
-            return true;
+            return false;
         }
 
-        return false;
+        //destroy node
+        std::shared_ptr<rcl_node_t> node = it->second;
+        RCL_RET_CHECK_UXR_RET_FALSE(rcl_node_fini(node.get()));
+
+        //if we get here then destroy good, remove from map
+        participants_.erase(participant_id);
+
+        return true;
     }
 
     bool RmwMiddleware::delete_topic(uint16_t topic_id)
     {
-        std::cout << "del top" << std::endl;
+        auto it = topics_.find(topic_id);
+        if(it == topics_.end())
+        {
+            return false;
+        }
+
+        //no destroying needed, just remove from map
+        topics_.erase(topic_id);
+
         return true;
     }
 
     bool RmwMiddleware::delete_publisher(uint16_t publisher_id)
     {
-        std::cout << "del pub" << std::endl;
+        //no xrce publishers (rcl pubs are datawriters) so nothing to do here
         return true;
     }
 
     bool RmwMiddleware::delete_subscriber(uint16_t subscriber_id)
     {
-        std::cout << "del sub" << std::endl;
+        //ditto ^ ^ (see delete_publisher)
         return true;
     }
 
     bool RmwMiddleware::delete_datawriter(uint16_t datawriter_id)
     {
-        std::cout << "del dw" << std::endl;
+        auto it = datawriters_.find(datawriter_id);
+        if(it == datawriters_.end())
+        {
+            return false;
+        }
+
+        //destroy publisher
+        PubSubInfo<rcl_publisher_t> pn = it->second;
+        RCL_RET_CHECK_UXR_RET_FALSE(rcl_publisher_fini(pn.t.get(), pn.node.get()));
+
+        //if we get here, then remove from the map
+        datawriters_.erase(datawriter_id);
+
         return true;
     }
 
     bool RmwMiddleware::delete_datareader(uint16_t datareader_id)
     {
-        std::cout << "del dr" << std::endl;
+        auto it = datareaders_.find(datareader_id);
+        if(it == datareaders_.end())
+        {
+            return false;
+        }
+
+        //destroy subscription
+        PubSubInfo<rcl_subscription_t> sn = it->second;
+        RCL_RET_CHECK_UXR_RET_FALSE(rcl_subscription_fini(sn.t.get(), sn.node.get()));
+
+        //if we get here, then remove from the map
+        datareaders_.erase(datareader_id);
+
         return true;
     }
 
@@ -308,7 +440,74 @@ namespace uxr {
         uint16_t datawriter_id,
         const std::vector<uint8_t>& data)
     {
-        std::cout << "wr dat" << std::endl;
+        //find datawriter
+        auto it = datawriters_.find(datawriter_id);
+        if(it == datawriters_.end())
+        {
+            return false;
+        }
+
+        PubSubInfo<rcl_publisher_t> pn = it->second;
+        std::shared_ptr<rcl_publisher_t> pub = pn.t;
+
+        //deserialize data (https://github.com/ros2/rmw_fastrtps/blob/humble/rmw_fastrtps_cpp/src/rmw_serialize.cpp)
+        //https://github.com/ros2/rmw_fastrtps/blob/rolling/rmw_fastrtps_cpp/src/type_support_common.cpp#L118
+
+        char buf[2048];
+        memcpy(buf, data.data(), data.size());
+
+        eprosima::fastcdr::FastBuffer fastbuffer(buf, data.size());
+        eprosima::fastcdr::Cdr deser(fastbuffer, eprosima::fastcdr::Cdr::DEFAULT_ENDIAN,
+            eprosima::fastcdr::Cdr::DDS_CDR);
+
+        // eprosima::fastcdr::Cdr deser(fastbuffer);
+        
+        std::shared_ptr<RosMessageType> msg_info = ROSIDL_TYPES[pn.verified_type_name];
+        const rosidl_message_type_support_t *generic_typesupport = msg_info->get_typesupport_handle();
+
+        // const rosidl_message_type_support_t * ts2 = get_message_typesupport_handle(
+        //     ts, rosidl_typesupport_fastrtps_cpp::typesupport_identifier);
+
+        const rosidl_message_type_support_t * fastdds_typesupport = get_message_typesupport_handle(
+            generic_typesupport, rosidl_typesupport_fastrtps_cpp::typesupport_identifier);
+
+        if (!fastdds_typesupport) {
+            fastdds_typesupport = get_message_typesupport_handle(
+                generic_typesupport, rosidl_typesupport_fastrtps_cpp::typesupport_identifier);
+
+            if (!fastdds_typesupport) {
+                UXR_AGENT_LOG_ERROR(
+                    UXR_DECORATE_RED("typesupport error"),
+                    "Typesupport is not supported.", "");
+
+                return false;
+            }
+    }
+
+        // if (!ts) {
+        //         ts = get_message_typesupport_handle(
+        //         type_support, RMW_FASTRTPS_CPP_TYPESUPPORT_CPP);
+        //         if (!ts) {
+        //         RMW_SET_ERROR_MSG("type support not from this implementation");
+        //         return RMW_RET_ERROR;
+        //     }
+        // }
+
+        auto callbacks = static_cast<const message_type_support_callbacks_t *>(fastdds_typesupport->data); //dont be fooled, message_type_support_callbacks_t is a fastdds-specific type, even if they didnt bother to namespace it
+        // rmw_fastrtps_cpp::MessageTypeSupport tss(callbacks);
+
+        size_t msg_sz = msg_info->size();
+        void *msg_data = malloc(msg_sz);
+        msg_info->get_empty_as_void_ptr(msg_data);
+
+        // std_msgs::msg::Int8 msg;
+
+        callbacks->cdr_deserialize(deser, msg_data); //now msg_data contains raw unserialized msg
+        // auto ret = tss.deserializeROSmessage(deser, msg_data, callbacks);
+
+        //publish data
+        RCL_RET_CHECK_UXR_RET_FALSE(rcl_publish(pub.get(), msg_data, nullptr));
+
         return true;
     }
 
@@ -335,7 +534,7 @@ namespace uxr {
         std::chrono::milliseconds timeout)
     {
         // std::cout << "r dat" << std::endl;
-        return true;
+        return false;
     }
 
     bool RmwMiddleware::read_request(
@@ -505,6 +704,66 @@ namespace uxr {
     {
         std::cout << "mat rep bin" << std::endl;
         return true;
+    }
+
+    bool RmwMiddleware::get_pubsub_ingredients_by_topic_id(uint16_t id, PubSubIngredients& ingredients)
+    {
+        auto topicit = topics_.find(id);
+        if(topicit == topics_.end())
+        {
+            return false;
+        }
+
+        TopicInfo tinfo = topicit->second;
+
+        //remove "rt" from ref string to derive topic name
+        ingredients.topic_name = tinfo.topic_name;
+        if(ingredients.topic_name.find("rt") == 0)
+        {
+            ingredients.topic_name = ingredients.topic_name.substr(2);
+        }
+
+        //validate message type support handle
+        auto tsit = ROSIDL_TYPES.find(tinfo.topic_type);
+        if(tsit == ROSIDL_TYPES.end())
+        {
+            UXR_AGENT_LOG_ERROR(
+                UXR_DECORATE_RED("type error"),
+                "Message type " + tinfo.topic_type + " is not supported.", "");
+
+            return false;
+        }
+
+        //ros message type exists, populate ingredients
+        ingredients.topic_type = tinfo.topic_type;
+
+        //find ros node
+        uint16_t participant_id = tinfo.participant_id;
+        
+        auto partit = participants_.find(participant_id);
+        if(partit == participants_.end())
+        {
+            return false;
+        }
+
+        ingredients.node = partit->second;
+
+        return true;
+    }
+
+    bool RmwMiddleware::get_pubsub_ingredients_by_topic_id(const std::string id_str, PubSubIngredients& ingredients)
+    {
+        //figure out the topic id and call the other overload
+        uint16_t topic_id = 0;
+        try
+        {
+            topic_id = (uint16_t) std::stoi(id_str);
+        } catch(std::invalid_argument& e)
+        {
+            return false;
+        }
+
+        return get_pubsub_ingredients_by_topic_id(topic_id, ingredients);
     }
 
 } // namespace eprosima

@@ -113,14 +113,6 @@ if(UAGENT_LOGGER_PROFILE)
     list(APPEND _deps "spdlog\;${_spdlog_version}")
 endif()
 
-if(UAGENT_SOCKETCAN_PROFILE)
-    find_package(titan_canmore REQUIRED)
-endif()
-
-if(UAGENT_RMW_PROFILE)
-
-endif()
-
 ###############################################################################
 # Project
 ###############################################################################
@@ -131,6 +123,24 @@ else()
     project(uagent_superbuild NONE)
     include(${PROJECT_SOURCE_DIR}/cmake/SuperBuild.cmake)
     return()
+endif()
+
+# I dont want to do it their way
+if(UAGENT_SOCKETCAN_PROFILE OR UAGENT_RMW_PROFILE) #these both require ament_cmake
+    find_package(ament_cmake REQUIRED)
+endif()
+
+if(UAGENT_SOCKETCAN_PROFILE)
+    find_package(titan_canmore REQUIRED)
+endif()
+
+if(UAGENT_RMW_PROFILE)
+    find_package(rcl REQUIRED)
+    find_package(rosidl_runtime_cpp REQUIRED)
+    find_package(rosidl_typesupport_cpp REQUIRED)
+    find_package(rosidl_typesupport_fastrtps_cpp REQUIRED)
+    find_package(std_msgs REQUIRED)
+    find_package(riptide_msgs2 REQUIRED)
 endif()
 
 # Set CMAKE_BUILD_TYPE to Release by default.
@@ -304,17 +314,15 @@ target_compile_options(${PROJECT_NAME}
     )
 
 target_link_libraries(${PROJECT_NAME}
-    PUBLIC
+    # PUBLIC
         fastcdr
         $<$<PLATFORM_ID:Windows>:ws2_32>
         $<$<PLATFORM_ID:Windows>:iphlpapi>
         $<$<BOOL:${UAGENT_LOGGER_PROFILE}>:spdlog::spdlog>
-    PRIVATE
+    # PRIVATE
         $<$<BOOL:${UAGENT_FAST_PROFILE}>:fastrtps>
         $<$<BOOL:${UAGENT_P2P_PROFILE}>:microxrcedds_client>
         $<$<BOOL:${UAGENT_P2P_PROFILE}>:microcdr>
-        $<$<BOOL:${UAGENT_SOCKETCAN_PROFILE}>:titan_canmore::canmore>
-        $<$<BOOL:${UAGENT_SOCKETCAN_PROFILE}>:titan_canmore::canmore_cpp>
         $<$<PLATFORM_ID:Linux>:pthread>
     )
 
@@ -331,6 +339,21 @@ target_include_directories(${PROJECT_NAME} BEFORE
         $<$<BOOL:${UAGENT_P2P_PROFILE}>:$<TARGET_PROPERTY:microxrcedds_client,INTERFACE_INCLUDE_DIRECTORIES>>
         $<$<BOOL:${UAGENT_P2P_PROFILE}>:$<TARGET_PROPERTY:microcdr,INTERFACE_INCLUDE_DIRECTORIES>>
     )
+
+if(UAGENT_SOCKETCAN_PROFILE)
+    ament_target_dependencies(${PROJECT_NAME}
+        titan_canmore)
+endif()
+
+if(UAGENT_RMW_PROFILE)
+    ament_target_dependencies(${PROJECT_NAME}
+        rcl
+        rosidl_runtime_cpp
+        rosidl_typesupport_cpp
+        rosidl_typesupport_fastrtps_cpp
+        std_msgs
+        riptide_msgs2)
+endif()
 
 # Executable
 if(UAGENT_BUILD_EXECUTABLE)
