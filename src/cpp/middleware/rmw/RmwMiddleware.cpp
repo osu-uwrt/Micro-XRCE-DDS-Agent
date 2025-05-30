@@ -94,13 +94,6 @@ namespace uxr {
         uint16_t participant_id,
         const std::string& ref)
     {
-        // auto it = topics_.find(topic_id);
-        // if(it == topics_.end())
-        // {
-        //     topics_.emplace(topic_id, ref);
-        //     return true;
-        // }
-
         return false;
     }
 
@@ -136,15 +129,6 @@ namespace uxr {
         uint16_t participant_id,
         const std::string&)
     {
-        // auto it = publishers_.find(publisher_id);
-        // if(it == publishers_.end())
-        // {
-        //     publishers_.emplace(publisher_id, participant_id);
-        //     return true;
-        // }
-
-        // return false;
-
         return true;
     }
 
@@ -161,15 +145,6 @@ namespace uxr {
         uint16_t participant_id,
         const std::string&)
     {
-        // auto it = subscribers_.find(subscriber_id);
-        // if(it == subscribers_.end())
-        // {
-        //     subscribers_.emplace(subscriber_id, participant_id);
-        //     return true;
-        // }
-
-        // return false;
-
         return true;
     }
 
@@ -451,62 +426,58 @@ namespace uxr {
         std::shared_ptr<rcl_publisher_t> pub = pn.t;
 
         //deserialize data (https://github.com/ros2/rmw_fastrtps/blob/humble/rmw_fastrtps_cpp/src/rmw_serialize.cpp)
-        //https://github.com/ros2/rmw_fastrtps/blob/rolling/rmw_fastrtps_cpp/src/type_support_common.cpp#L118
+        //also look at this: https://github.com/ros2/rmw_fastrtps/blob/rolling/rmw_fastrtps_cpp/src/type_support_common.cpp#L118
 
-        char buf[2048];
-        memcpy(buf, data.data(), data.size());
+        if(data.size() > sizeof(serialized_buffer))
+        {
+            UXR_AGENT_LOG_ERROR(
+                UXR_DECORATE_RED("deserialization error"),
+                "Message too large: " + std::to_string(data.size()) + " > " + std::to_string(sizeof(serialized_buffer)), "");
+            
+            return false;
+        }
 
-        eprosima::fastcdr::FastBuffer fastbuffer(buf, data.size());
+        memcpy(serialized_buffer, data.data(), data.size());
+
+        eprosima::fastcdr::FastBuffer fastbuffer(serialized_buffer, data.size());
         eprosima::fastcdr::Cdr deser(fastbuffer, eprosima::fastcdr::Cdr::DEFAULT_ENDIAN,
             eprosima::fastcdr::Cdr::DDS_CDR);
-
-        // eprosima::fastcdr::Cdr deser(fastbuffer);
         
+        // get generic type support handle
         std::shared_ptr<RosMessageType> msg_info = ROSIDL_TYPES[pn.verified_type_name];
-        const rosidl_message_type_support_t *generic_typesupport = msg_info->get_typesupport_handle();
+        const rosidl_message_type_support_t 
+            *generic_typesupport = msg_info->get_typesupport_handle(),
+            *fastdds_typesupport = get_fastrtps_typesupport_handle(generic_typesupport);
 
-        // const rosidl_message_type_support_t * ts2 = get_message_typesupport_handle(
-        //     ts, rosidl_typesupport_fastrtps_cpp::typesupport_identifier);
-
-        const rosidl_message_type_support_t * fastdds_typesupport = get_message_typesupport_handle(
-            generic_typesupport, rosidl_typesupport_fastrtps_cpp::typesupport_identifier);
-
+        // check fastdds-specific type support handle
         if (!fastdds_typesupport) {
-            fastdds_typesupport = get_message_typesupport_handle(
-                generic_typesupport, rosidl_typesupport_fastrtps_cpp::typesupport_identifier);
+            UXR_AGENT_LOG_ERROR(
+                UXR_DECORATE_RED("typesupport error"),
+                "Typesupport is not supported.", "");
 
-            if (!fastdds_typesupport) {
-                UXR_AGENT_LOG_ERROR(
-                    UXR_DECORATE_RED("typesupport error"),
-                    "Typesupport is not supported.", "");
+            return false;
+        }
 
-                return false;
-            }
-    }
+        // callbacks, includes deserialize function handle
+        auto callbacks = static_cast<const message_type_support_callbacks_t *>(fastdds_typesupport->data);
 
-        // if (!ts) {
-        //         ts = get_message_typesupport_handle(
-        //         type_support, RMW_FASTRTPS_CPP_TYPESUPPORT_CPP);
-        //         if (!ts) {
-        //         RMW_SET_ERROR_MSG("type support not from this implementation");
-        //         return RMW_RET_ERROR;
-        //     }
-        // }
+        //populate a buffer with an empty message
+        size_t msg_sz = msg_info->get_empty_as_void_ptr(unserialized_buffer, sizeof(unserialized_buffer));
+        
+        if(msg_sz == 0)
+        {
+            UXR_AGENT_LOG_ERROR(
+                UXR_DECORATE_RED("message error"),
+                "Message too large (" + std::to_string(msg_sz) + " > " + std::to_string(sizeof(unserialized_buffer)), "");
+            
+            return false;
+        }
 
-        auto callbacks = static_cast<const message_type_support_callbacks_t *>(fastdds_typesupport->data); //dont be fooled, message_type_support_callbacks_t is a fastdds-specific type, even if they didnt bother to namespace it
-        // rmw_fastrtps_cpp::MessageTypeSupport tss(callbacks);
-
-        size_t msg_sz = msg_info->size();
-        void *msg_data = malloc(msg_sz);
-        msg_info->get_empty_as_void_ptr(msg_data);
-
-        // std_msgs::msg::Int8 msg;
-
-        callbacks->cdr_deserialize(deser, msg_data); //now msg_data contains raw unserialized msg
-        // auto ret = tss.deserializeROSmessage(deser, msg_data, callbacks);
+        //de-serialize data into message buffer
+        callbacks->cdr_deserialize(deser, static_cast<void *>(unserialized_buffer)); //now msg_data contains raw unserialized msg
 
         //publish data
-        RCL_RET_CHECK_UXR_RET_FALSE(rcl_publish(pub.get(), msg_data, nullptr));
+        RCL_RET_CHECK_UXR_RET_FALSE(rcl_publish(pub.get(), unserialized_buffer, nullptr));
 
         return true;
     }
@@ -533,8 +504,73 @@ namespace uxr {
         std::vector<uint8_t>& data,
         std::chrono::milliseconds timeout)
     {
-        // std::cout << "r dat" << std::endl;
-        return false;
+        auto it = datareaders_.find(datareader_id);
+        if(it == datareaders_.end())
+        {
+            return false;
+        }
+
+        //get subscription handle
+        PubSubInfo<rcl_subscription_t> sn = it->second;
+        std::shared_ptr<rcl_subscription_t> sub = sn.t;
+
+        std::shared_ptr<RosMessageType> msg_info = ROSIDL_TYPES[sn.verified_type_name];
+
+        //get generic message into buffer
+        size_t msg_size = msg_info->get_empty_as_void_ptr(unserialized_buffer, sizeof(unserialized_buffer));
+        if(msg_size == 0)
+        {
+            UXR_AGENT_LOG_ERROR(
+                UXR_DECORATE_RED("message error"),
+                "Message too large (" + std::to_string(msg_size) + " > " + std::to_string(sizeof(unserialized_buffer)), "");
+            
+            return false;
+        }
+
+        //take msg with rcl
+        rmw_message_info_t metadata;
+        rcl_ret_t ret = rcl_take(sub.get(), unserialized_buffer, &metadata, nullptr);
+
+        if(ret == RCL_RET_SUBSCRIPTION_TAKE_FAILED)
+        {
+            return false;
+        }
+
+        if(ret != RCL_RET_OK)
+        {
+            UXR_AGENT_LOG_CRITICAL(
+                UXR_DECORATE_RED("rmw plugin error"),
+                "rcl_take failed with code " + std::to_string(ret), "");
+            
+            return false;
+        }
+
+        //now serialize the data using fastrtps
+        const rosidl_message_type_support_t 
+            *generic_typesupport = msg_info->get_typesupport_handle(),
+            *fastrtps_typesupport = get_fastrtps_typesupport_handle(generic_typesupport);
+
+        // check fastdds-specific type support handle
+        if (!fastrtps_typesupport) {
+            UXR_AGENT_LOG_ERROR(
+                UXR_DECORATE_RED("typesupport error"),
+                "Typesupport is not supported.", "");
+
+            return false;
+        }
+
+        auto callbacks = static_cast<const message_type_support_callbacks_t *>(fastrtps_typesupport->data);
+
+        eprosima::fastcdr::FastBuffer fastbuffer(serialized_buffer, msg_size);
+        eprosima::fastcdr::Cdr deser(fastbuffer, eprosima::fastcdr::Cdr::DEFAULT_ENDIAN,
+            eprosima::fastcdr::Cdr::DDS_CDR);
+        
+        callbacks->cdr_serialize(static_cast<void *>(unserialized_buffer), deser);
+
+        //pack into data out
+        data.assign(fastbuffer.getBuffer(), fastbuffer.getBuffer() + fastbuffer.getBufferSize());
+
+        return true;
     }
 
     bool RmwMiddleware::read_request(
@@ -704,6 +740,19 @@ namespace uxr {
     {
         std::cout << "mat rep bin" << std::endl;
         return true;
+    }
+
+    const rosidl_message_type_support_t *RmwMiddleware::get_fastrtps_typesupport_handle(const rosidl_message_type_support_t* generic_handle)
+    {
+        const rosidl_message_type_support_t * fastdds_typesupport = get_message_typesupport_handle(
+            generic_handle, rosidl_typesupport_fastrtps_cpp::typesupport_identifier);
+
+        if (!fastdds_typesupport) {
+            fastdds_typesupport = get_message_typesupport_handle(
+                generic_handle, rosidl_typesupport_fastrtps_cpp::typesupport_identifier);
+
+            return nullptr;
+        }
     }
 
     bool RmwMiddleware::get_pubsub_ingredients_by_topic_id(uint16_t id, PubSubIngredients& ingredients)

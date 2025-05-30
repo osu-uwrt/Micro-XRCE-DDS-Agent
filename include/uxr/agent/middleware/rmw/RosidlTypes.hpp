@@ -14,7 +14,7 @@ class RosMessageType
     public:
     virtual size_t size() = 0;
     virtual const rosidl_message_type_support_t *get_typesupport_handle() = 0;
-    virtual void get_empty_as_void_ptr(void *buf) = 0;
+    virtual size_t get_empty_as_void_ptr(void *buf, size_t max_sz) = 0;
 };
 
 template<typename T>
@@ -35,9 +35,16 @@ class RosMessageTypeImpl : public RosMessageType
         return typesupport_handle;
     }
 
-    void get_empty_as_void_ptr(void *buf) override
+    size_t get_empty_as_void_ptr(void *buf, size_t max_sz) override
     {
-        memcpy(buf, &msg, size());
+        size_t sz = size();
+        if(sz > max_sz)
+        {
+            return 0;
+        }
+
+        memcpy(buf, &msg, sz);
+        return sz;
     }
 
     private:

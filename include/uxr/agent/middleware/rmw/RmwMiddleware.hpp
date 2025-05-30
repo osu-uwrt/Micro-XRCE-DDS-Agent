@@ -22,6 +22,8 @@
 
 #include <rcl/rcl.h>
 
+#define MAX_MSG_LENGTH 2048
+
 struct TopicInfo
 {
     uint16_t participant_id;
@@ -302,8 +304,13 @@ public:
 
 
     private:
+    const rosidl_message_type_support_t *get_fastrtps_typesupport_handle(const rosidl_message_type_support_t* generic_handle);
     bool get_pubsub_ingredients_by_topic_id(uint16_t id, PubSubIngredients& ingredients);
     bool get_pubsub_ingredients_by_topic_id(const std::string id_str, PubSubIngredients& ingredients);
+
+    char
+        serialized_buffer[MAX_MSG_LENGTH],
+        unserialized_buffer[MAX_MSG_LENGTH];
 
     bool rcl_initted = false;
     rcl_context_t rcl_context;
