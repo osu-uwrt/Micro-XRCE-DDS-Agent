@@ -35,7 +35,7 @@ namespace uxr {
        datawriters_{},
        datareaders_{}
     {
-        rcl_init_options_t init_options;
+        rcl_init_options_t init_options = rcl_get_zero_initialized_init_options();
         RCL_RET_CHECK_UXR_NO_RET(rcl_init_options_init(&init_options, rcutils_get_default_allocator()));
 
         rcl_context = rcl_get_zero_initialized_context();
@@ -426,7 +426,7 @@ namespace uxr {
         std::shared_ptr<rcl_publisher_t> pub = pn.t;
 
         //deserialize data (https://github.com/ros2/rmw_fastrtps/blob/humble/rmw_fastrtps_cpp/src/rmw_serialize.cpp)
-        //also look at this: https://github.com/ros2/rmw_fastrtps/blob/rolling/rmw_fastrtps_cpp/src/type_support_common.cpp#L118
+        //also look at this: https://github.com/ros2/rmw_fastrtps/blob/humble/rmw_fastrtps_cpp/src/type_support_common.cpp#L118
 
         if(data.size() > sizeof(serialized_buffer))
         {
@@ -545,6 +545,8 @@ namespace uxr {
             return false;
         }
 
+        //see comments in write_data for how serialization is handled
+
         //now serialize the data using fastrtps
         const rosidl_message_type_support_t 
             *generic_typesupport = msg_info->get_typesupport_handle(),
@@ -562,10 +564,10 @@ namespace uxr {
         auto callbacks = static_cast<const message_type_support_callbacks_t *>(fastrtps_typesupport->data);
 
         eprosima::fastcdr::FastBuffer fastbuffer(serialized_buffer, msg_size);
-        eprosima::fastcdr::Cdr deser(fastbuffer, eprosima::fastcdr::Cdr::DEFAULT_ENDIAN,
+        eprosima::fastcdr::Cdr ser(fastbuffer, eprosima::fastcdr::Cdr::DEFAULT_ENDIAN,
             eprosima::fastcdr::Cdr::DDS_CDR);
         
-        callbacks->cdr_serialize(static_cast<void *>(unserialized_buffer), deser);
+        callbacks->cdr_serialize(static_cast<void *>(unserialized_buffer), ser);
 
         //pack into data out
         data.assign(fastbuffer.getBuffer(), fastbuffer.getBuffer() + fastbuffer.getBufferSize());
