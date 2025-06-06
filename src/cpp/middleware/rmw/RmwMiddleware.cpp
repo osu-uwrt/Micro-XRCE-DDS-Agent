@@ -450,10 +450,11 @@ namespace uxr {
             *fastdds_typesupport = get_fastrtps_typesupport_handle(generic_typesupport);
 
         // check fastdds-specific type support handle
+        std::string vtn = pn.verified_type_name;
         if (!fastdds_typesupport) {
             UXR_AGENT_LOG_ERROR(
                 UXR_DECORATE_RED("typesupport error"),
-                "Typesupport is not supported.", "");
+                "" + vtn, "");
 
             return false;
         }
@@ -553,10 +554,11 @@ namespace uxr {
             *fastrtps_typesupport = get_fastrtps_typesupport_handle(generic_typesupport);
 
         // check fastdds-specific type support handle
+        std::string vtn = sn.verified_type_name;
         if (!fastrtps_typesupport) {
             UXR_AGENT_LOG_ERROR(
                 UXR_DECORATE_RED("typesupport error"),
-                "Typesupport is not supported.", "");
+                "" + vtn, "");
 
             return false;
         }
