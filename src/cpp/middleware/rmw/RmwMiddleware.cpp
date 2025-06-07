@@ -415,10 +415,13 @@ namespace uxr {
         uint16_t datawriter_id,
         const std::vector<uint8_t>& data)
     {
+        mtex.lock();
+
         //find datawriter
         auto it = datawriters_.find(datawriter_id);
         if(it == datawriters_.end())
         {
+            mtex.unlock();
             return false;
         }
 
@@ -434,6 +437,7 @@ namespace uxr {
                 UXR_DECORATE_RED("deserialization error"),
                 "Message too large: " + std::to_string(data.size()) + " > " + std::to_string(sizeof(serialized_buffer)), "");
             
+            mtex.unlock();
             return false;
         }
 
@@ -455,31 +459,28 @@ namespace uxr {
             UXR_AGENT_LOG_ERROR(
                 UXR_DECORATE_RED("typesupport error"),
                 "" + vtn, "");
-
-            return false;
+            
+            mtex.unlock();
+            return true;
         }
 
         // callbacks, includes deserialize function handle
         auto callbacks = static_cast<const message_type_support_callbacks_t *>(fastdds_typesupport->data);
 
         //populate a buffer with an empty message
-        size_t msg_sz = msg_info->get_empty_as_void_ptr(unserialized_buffer, sizeof(unserialized_buffer));
-        
-        if(msg_sz == 0)
-        {
-            UXR_AGENT_LOG_ERROR(
-                UXR_DECORATE_RED("message error"),
-                "Message too large (" + std::to_string(msg_sz) + " > " + std::to_string(sizeof(unserialized_buffer)), "");
-            
-            return false;
-        }
+        size_t msg_sz;
+        void *buf = msg_info->get_empty_as_void_ptr(&msg_sz);
+
+        riptide_msgs2::msg::FirmwareStatus fws;
 
         //de-serialize data into message buffer
-        callbacks->cdr_deserialize(deser, static_cast<void *>(unserialized_buffer)); //now msg_data contains raw unserialized msg
-
+        callbacks->cdr_deserialize(deser, buf); //now msg_data contains raw unserialized msg
+        
         //publish data
-        RCL_RET_CHECK_UXR_RET_FALSE(rcl_publish(pub.get(), unserialized_buffer, nullptr));
+        RCL_RET_CHECK_UXR_RET_FALSE(rcl_publish(pub.get(), buf, nullptr));
+        msg_info->delete_empty(buf);
 
+        mtex.unlock();
         return true;
     }
 
@@ -505,9 +506,11 @@ namespace uxr {
         std::vector<uint8_t>& data,
         std::chrono::milliseconds timeout)
     {
+        mtex.lock();
         auto it = datareaders_.find(datareader_id);
         if(it == datareaders_.end())
         {
+            mtex.unlock();
             return false;
         }
 
@@ -518,22 +521,16 @@ namespace uxr {
         std::shared_ptr<RosMessageType> msg_info = ROSIDL_TYPES[sn.verified_type_name];
 
         //get generic message into buffer
-        size_t msg_size = msg_info->get_empty_as_void_ptr(unserialized_buffer, sizeof(unserialized_buffer));
-        if(msg_size == 0)
-        {
-            UXR_AGENT_LOG_ERROR(
-                UXR_DECORATE_RED("message error"),
-                "Message too large (" + std::to_string(msg_size) + " > " + std::to_string(sizeof(unserialized_buffer)), "");
-            
-            return false;
-        }
+        size_t msg_size;
+        void *buf = msg_info->get_empty_as_void_ptr(&msg_size);
 
         //take msg with rcl
         rmw_message_info_t metadata;
-        rcl_ret_t ret = rcl_take(sub.get(), unserialized_buffer, &metadata, nullptr);
+        rcl_ret_t ret = rcl_take(sub.get(), buf, &metadata, nullptr);
 
         if(ret == RCL_RET_SUBSCRIPTION_TAKE_FAILED)
         {
+            mtex.unlock();
             return false;
         }
 
@@ -543,6 +540,7 @@ namespace uxr {
                 UXR_DECORATE_RED("rmw plugin error"),
                 "rcl_take failed with code " + std::to_string(ret), "");
             
+            mtex.unlock();
             return false;
         }
 
@@ -560,7 +558,8 @@ namespace uxr {
                 UXR_DECORATE_RED("typesupport error"),
                 "" + vtn, "");
 
-            return false;
+            mtex.unlock();
+            return true;
         }
 
         auto callbacks = static_cast<const message_type_support_callbacks_t *>(fastrtps_typesupport->data);
@@ -569,11 +568,13 @@ namespace uxr {
         eprosima::fastcdr::Cdr ser(fastbuffer, eprosima::fastcdr::Cdr::DEFAULT_ENDIAN,
             eprosima::fastcdr::Cdr::DDS_CDR);
         
-        callbacks->cdr_serialize(static_cast<void *>(unserialized_buffer), ser);
+        callbacks->cdr_serialize(buf, ser);
+        msg_info->delete_empty(buf);
 
         //pack into data out
         data.assign(fastbuffer.getBuffer(), fastbuffer.getBuffer() + fastbuffer.getBufferSize());
 
+        mtex.unlock();
         return true;
     }
 
@@ -757,6 +758,8 @@ namespace uxr {
 
             return nullptr;
         }
+
+        return fastdds_typesupport;
     }
 
     bool RmwMiddleware::get_pubsub_ingredients_by_topic_id(uint16_t id, PubSubIngredients& ingredients)
@@ -784,7 +787,7 @@ namespace uxr {
                 UXR_DECORATE_RED("type error"),
                 "Message type " + tinfo.topic_type + " is not supported.", "");
 
-            return false;
+            return true;
         }
 
         //ros message type exists, populate ingredients

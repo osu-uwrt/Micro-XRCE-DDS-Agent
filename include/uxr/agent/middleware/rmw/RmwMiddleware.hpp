@@ -19,6 +19,7 @@
 
 #include <unordered_map>
 #include <memory>
+#include <mutex>
 
 #include <rcl/rcl.h>
 
@@ -308,12 +309,12 @@ public:
     bool get_pubsub_ingredients_by_topic_id(uint16_t id, PubSubIngredients& ingredients);
     bool get_pubsub_ingredients_by_topic_id(const std::string id_str, PubSubIngredients& ingredients);
 
-    char
-        serialized_buffer[MAX_MSG_LENGTH],
-        unserialized_buffer[MAX_MSG_LENGTH];
+    char serialized_buffer[MAX_MSG_LENGTH];
 
     bool rcl_initted = false;
     rcl_context_t rcl_context;
+
+    std::mutex mtex;
 
     std::unordered_map<uint16_t, std::shared_ptr<rcl_node_t>> participants_;
     std::unordered_map<uint16_t, TopicInfo> topics_;

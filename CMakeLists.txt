@@ -314,12 +314,12 @@ target_compile_options(${PROJECT_NAME}
     )
 
 target_link_libraries(${PROJECT_NAME}
-    PUBLIC
+    # PUBLIC
         fastcdr
         $<$<PLATFORM_ID:Windows>:ws2_32>
         $<$<PLATFORM_ID:Windows>:iphlpapi>
         $<$<BOOL:${UAGENT_LOGGER_PROFILE}>:spdlog::spdlog>
-    PRIVATE
+    # PRIVATE
         $<$<BOOL:${UAGENT_FAST_PROFILE}>:fastrtps>
         $<$<BOOL:${UAGENT_P2P_PROFILE}>:microxrcedds_client>
         $<$<BOOL:${UAGENT_P2P_PROFILE}>:microcdr>
@@ -341,37 +341,39 @@ target_include_directories(${PROJECT_NAME} BEFORE
     )
 
 if(UAGENT_SOCKETCAN_PROFILE)
-    # ament_target_dependencies(${PROJECT_NAME}
-    #     titan_canmore)
-    target_link_libraries(${PROJECT_NAME} 
-        PUBLIC
-        titan_canmore::canmore
-        titan_canmore::canmore_cpp)
+    ament_target_dependencies(${PROJECT_NAME}
+        titan_canmore)
+    # target_link_libraries(${PROJECT_NAME} 
+    #     PUBLIC
+    #     titan_canmore::canmore
+    #     titan_canmore::canmore_cpp)
 endif()
 
 if(UAGENT_RMW_PROFILE)
-    # ament_target_dependencies(${PROJECT_NAME}
-    #     rcl
-    #     rosidl_runtime_cpp
-    #     rosidl_typesupport_cpp
-    #     rosidl_typesupport_fastrtps_cpp
-    #     std_msgs
-    #     riptide_msgs2)
+    ament_target_dependencies(${PROJECT_NAME}
+        rcl
+        rosidl_runtime_cpp
+        rosidl_typesupport_cpp
+        rosidl_typesupport_fastrtps_cpp
+        std_msgs
+        riptide_msgs2)
 
-    target_link_libraries(${PROJECT_NAME}
-        PUBLIC
-        rcl::rcl
-        rosidl_runtime_cpp::rosidl_runtime_cpp
-        rosidl_typesupport_cpp::rosidl_typesupport_cpp
-        rosidl_typesupport_fastrtps_cpp::rosidl_typesupport_fastrtps_cpp
-        std_msgs::std_msgs__rosidl_generator_cpp
-        std_msgs::std_msgs__rosidl_typesupport_cpp
-        riptide_msgs2::riptide_msgs2__rosidl_generator_cpp
-        riptide_msgs2::riptide_msgs2__rosidl_typesupport_cpp)
+    # target_link_libraries(${PROJECT_NAME}
+    #     PUBLIC
+    #     rcl::rcl
+    #     rosidl_runtime_cpp::rosidl_runtime_cpp
+    #     rosidl_typesupport_cpp::rosidl_typesupport_cpp
+    #     rosidl_typesupport_fastrtps_cpp::rosidl_typesupport_fastrtps_cpp
+    #     std_msgs::std_msgs__rosidl_generator_cpp
+    #     std_msgs::std_msgs__rosidl_typesupport_cpp
+    #     std_msgs::std_msgs__rosidl_typesupport_fastrtps_cpp
+    #     riptide_msgs2::riptide_msgs2__rosidl_generator_cpp
+    #     riptide_msgs2::riptide_msgs2__rosidl_typesupport_cpp
+    #     riptide_msgs2::riptide_msgs2__rosidl_typesupport_fastrtps_cpp)
 
-    target_include_directories(${PROJECT_NAME} PRIVATE
-        ${std_msgs_INCLUDE_DIRS}
-        ${riptide_msgs2_INCLUDE_DIRS})
+    # target_include_directories(${PROJECT_NAME} PRIVATE
+    #     ${std_msgs_INCLUDE_DIRS}
+    #     ${riptide_msgs2_INCLUDE_DIRS})
 
 endif()
 
@@ -379,7 +381,7 @@ endif()
 if(UAGENT_BUILD_EXECUTABLE)
     add_executable(MicroXRCEAgent microxrce_agent.cpp)
     target_link_libraries(MicroXRCEAgent
-        PRIVATE
+        # PRIVATE
             ${PROJECT_NAME}
             $<$<BOOL:$<PLATFORM_ID:Linux>>:rt>
             $<$<BOOL:$<PLATFORM_ID:Linux>>:dl>
@@ -461,8 +463,6 @@ install(
     COMPONENT
         libraries
     )
-
-ament_export_targets(${PROJECT_NAME}Targets HAS_LIBRARY_TARGET)
 
 # Install includes
 install(
