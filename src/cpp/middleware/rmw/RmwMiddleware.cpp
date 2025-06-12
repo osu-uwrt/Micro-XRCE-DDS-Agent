@@ -28,6 +28,8 @@
 namespace eprosima {
 namespace uxr {
 
+    static size_t RmwMiddleware::next_participant_id = 0;
+
     RmwMiddleware::RmwMiddleware()
      : callback_factory_(callback_factory_.getInstance()),
        participants_{},
@@ -50,7 +52,14 @@ namespace uxr {
 
     RmwMiddleware::~RmwMiddleware()
     {
-        RCL_RET_CHECK_UXR_NO_RET(rcl_shutdown(&rcl_context));
+        // RCL_RET_CHECK_UXR_NO_RET(rcl_shutdown(&rcl_context));
+        if(rcl_ret_t __ret = rcl_shutdown(&rcl_context) != RCL_RET_OK) \
+        {
+            UXR_AGENT_LOG_ERROR(
+                UXR_DECORATE_RED("rmw plugin error"),
+                "rcl_shutdown failed with code " + std::to_string(__ret), "");
+        }
+
         Middleware::~Middleware();
     }
 
@@ -64,7 +73,8 @@ namespace uxr {
     {
         //referenced from here: https://github.com/ros2/rclcpp/blob/humble/rclcpp/src/rclcpp/node_interfaces/node_base.cpp
         std::shared_ptr<rcl_node_t> node(new rcl_node_t(rcl_get_zero_initialized_node()));
-        std::string part_name = "xrce_participant_" + std::to_string(participant_id);
+        std::string part_name = "xrce_participant_" + std::to_string(next_participant_id);
+        next_participant_id++;
         int ret;
         size_t invalid_index;
         RCL_RET_CHECK_UXR_RET_FALSE(rmw_validate_node_name(part_name.c_str(), &ret, &invalid_index));
