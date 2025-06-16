@@ -4,7 +4,8 @@
     "dependencies":[
         "fastcdr",
         "fastrtps",
-        "titan_canmore"
+        "titan_canmore",
+        "amr_msgs"
     ],
     "cmake-args":[
         "-DUAGENT_ISOLATED_INSTALL=OFF",

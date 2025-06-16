@@ -110,6 +110,9 @@ bool CanAgent::init()
 
     try
     {
+
+        //std::cout << dev_.c_str() <<std::endl;
+
         int ifIdx = if_nametoindex(dev_.c_str());
         if (!ifIdx) {
             throw std::system_error(errno, std::generic_category(), "if_nametoindex");

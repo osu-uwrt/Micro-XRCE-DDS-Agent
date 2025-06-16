@@ -28,7 +28,6 @@
 namespace eprosima {
 namespace uxr {
 
-    static size_t RmwMiddleware::next_participant_id = 0;
 
     RmwMiddleware::RmwMiddleware()
      : callback_factory_(callback_factory_.getInstance()),
@@ -37,6 +36,9 @@ namespace uxr {
        datawriters_{},
        datareaders_{}
     {
+        next_participant_id = 0;
+
+
         rcl_init_options_t init_options = rcl_get_zero_initialized_init_options();
         RCL_RET_CHECK_UXR_NO_RET(rcl_init_options_init(&init_options, rcutils_get_default_allocator()));
 
@@ -71,6 +73,7 @@ namespace uxr {
         int16_t domain_id,
         const std::string& ref)
     {
+
         //referenced from here: https://github.com/ros2/rclcpp/blob/humble/rclcpp/src/rclcpp/node_interfaces/node_base.cpp
         std::shared_ptr<rcl_node_t> node(new rcl_node_t(rcl_get_zero_initialized_node()));
         std::string part_name = "xrce_participant_" + std::to_string(next_participant_id);
@@ -120,6 +123,7 @@ namespace uxr {
         uint16_t participant_id,
         const dds::xrce::OBJK_Topic_Binary& topic_xrce)
     {
+
         if(topics_.find(topic_id) == topics_.end())
         {
             TopicInfo tinfo;
@@ -171,6 +175,7 @@ namespace uxr {
         uint16_t publisher_id,
         const std::string& ref)
     {
+
         PubSubIngredients pub_ingredients;
         if(!get_pubsub_ingredients_by_topic_id(ref, pub_ingredients))
         {
@@ -206,6 +211,7 @@ namespace uxr {
         uint16_t publisher_id,
         const dds::xrce::OBJK_DataWriter_Binary& datawriter_xrce)
     {
+
         //look up topic
         uint16_t topic_id = conversion::objectid_to_raw(datawriter_xrce.topic_id());
         auto it = topics_.find(topic_id);
@@ -222,6 +228,8 @@ namespace uxr {
         uint16_t subscriber_id,
         const std::string& ref)
     {
+
+
         PubSubIngredients sub_ingredients;
 
         if(!get_pubsub_ingredients_by_topic_id(ref, sub_ingredients))
@@ -258,6 +266,7 @@ namespace uxr {
         uint16_t subscriber_id,
         const dds::xrce::OBJK_DataReader_Binary& datareader_xrce)
     {
+
         //look up topic
         uint16_t topic_id = conversion::objectid_to_raw(datareader_xrce.topic_id());
         auto it = topics_.find(topic_id);
@@ -425,6 +434,7 @@ namespace uxr {
         uint16_t datawriter_id,
         const std::vector<uint8_t>& data)
     {
+
         mtex.lock();
 
         //find datawriter
@@ -481,7 +491,7 @@ namespace uxr {
         size_t msg_sz;
         void *buf = msg_info->get_empty_as_void_ptr(&msg_sz);
 
-        riptide_msgs2::msg::FirmwareStatus fws;
+        amr_msgs::msg::FirmwareStatus fws;
 
         //de-serialize data into message buffer
         callbacks->cdr_deserialize(deser, buf); //now msg_data contains raw unserialized msg
@@ -489,6 +499,8 @@ namespace uxr {
         //publish data
         RCL_RET_CHECK_UXR_RET_FALSE(rcl_publish(pub.get(), buf, nullptr));
         msg_info->delete_empty(buf);
+        // free(buf);
+        // buf = nullptr;
 
         mtex.unlock();
         return true;
@@ -541,6 +553,8 @@ namespace uxr {
         if(ret == RCL_RET_SUBSCRIPTION_TAKE_FAILED)
         {
             mtex.unlock();
+                    
+            msg_info->delete_empty(buf);
             return false;
         }
 
@@ -551,6 +565,9 @@ namespace uxr {
                 "rcl_take failed with code " + std::to_string(ret), "");
             
             mtex.unlock();
+
+            msg_info->delete_empty(buf);
+
             return false;
         }
 
@@ -569,6 +586,9 @@ namespace uxr {
                 "" + vtn, "");
 
             mtex.unlock();
+
+            msg_info->delete_empty(buf);
+
             return true;
         }
 

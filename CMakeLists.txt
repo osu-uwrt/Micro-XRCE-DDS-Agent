@@ -30,7 +30,7 @@ option(BUILD_SHARED_LIBS "Control shared/static building." ON)
 option(UAGENT_USE_SYSTEM_FASTDDS "Force find and use system installed Fast-DDS." OFF)
 option(UAGENT_USE_SYSTEM_FASTCDR "Force find and use system installed Fast-CDR." OFF)
 option(UAGENT_USE_SYSTEM_LOGGER "Force find and use system installed spdlog." OFF)
-option(UAGENT_FAST_PROFILE "Build FastMiddleware profile." ON)
+option(UAGENT_FAST_PROFILE "Build FastMiddleware profile." OFF)
 option(UAGENT_CED_PROFILE "Build CedMiddleware profile." ON)
 option(UAGENT_RMW_PROFILE "Build RMW profile" ON)
 option(UAGENT_DISCOVERY_PROFILE "Build Discovery profile." ON)
@@ -97,7 +97,7 @@ if(UAGENT_FAST_PROFILE)
         set(_fastdds_version 2)
     else()
         set(_fastdds_version 2.9)
-        set(_fastdds_tag 2.9.x)
+        set(_fastdds_tag 2.10.x)
         set(_foonathan_memory_tag v0.7-1) # This tag should be updated every time it gets updated in foonathan_memory_vendor eProsima's package
     endif()
     list(APPEND _deps "fastrtps\;${_fastdds_version}")
@@ -135,12 +135,14 @@ if(UAGENT_SOCKETCAN_PROFILE)
 endif()
 
 if(UAGENT_RMW_PROFILE)
+    message("THIS GOT DEFINED FOOL----------------------------------------------------------------------------------")
+
     find_package(rcl REQUIRED)
     find_package(rosidl_runtime_cpp REQUIRED)
     find_package(rosidl_typesupport_cpp REQUIRED)
     find_package(rosidl_typesupport_fastrtps_cpp REQUIRED)
     find_package(std_msgs REQUIRED)
-    find_package(riptide_msgs2 REQUIRED)
+    find_package(amr_msgs REQUIRED)
 endif()
 
 # Set CMAKE_BUILD_TYPE to Release by default.
@@ -356,7 +358,7 @@ if(UAGENT_RMW_PROFILE)
         rosidl_typesupport_cpp
         rosidl_typesupport_fastrtps_cpp
         std_msgs
-        riptide_msgs2)
+        amr_msgs)
 
     # target_link_libraries(${PROJECT_NAME}
     #     PUBLIC

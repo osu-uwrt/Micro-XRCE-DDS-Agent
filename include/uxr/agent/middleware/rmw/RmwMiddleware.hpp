@@ -59,6 +59,9 @@ class CallbackFactory;
 class RmwMiddleware : public Middleware
 {
 public:
+
+    size_t next_participant_id;
+
     RmwMiddleware();
     ~RmwMiddleware();
 
