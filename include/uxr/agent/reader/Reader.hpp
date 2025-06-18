@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#ifndef DATA_READER_UPDATE_TIME_MICROSECONDS
+#define DATA_READER_UPDATE_TIME_MICROSECONDS 100
+#endif
+
 #ifndef UXR_AGENT_READER_READER_HPP_
 #define UXR_AGENT_READER_READER_HPP_
 
@@ -22,6 +26,8 @@
 #include <thread>
 #include <mutex>
 #include <chrono>
+#include <thread>
+#include <rcl/rcl.h>
 #include <type_traits>
 
 namespace eprosima {
@@ -133,6 +139,8 @@ inline void Reader<RA, WA>::read_task(
     using namespace eprosima::uxr::utils;
     using namespace std::chrono;
 
+    std::cout << "Beginning Data Reader Read Task" <<std::endl;
+
     constexpr std::chrono::milliseconds max_timeout{rw_timeout};
 
     size_t rate = (max_bytes_per_second_unlimited == delivery_control_.max_bytes_per_second())
@@ -148,9 +156,26 @@ inline void Reader<RA, WA>::read_task(
         : init_time + seconds(delivery_control_.max_elapsed_time());
 
     milliseconds timeout;
+
+    auto current_time_point = std::chrono::system_clock::now();
+
+    long long preivous_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(current_time_point.time_since_epoch()).count();
+    long long current_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(current_time_point.time_since_epoch()).count();
+
+    long long pause_microseconds = DATA_READER_UPDATE_TIME_MICROSECONDS - (current_microseconds - preivous_microseconds);
+
     while (running_cond_ && !stop_cond)
     {
         timeout = std::min(max_timeout, duration_cast<milliseconds>(final_time - steady_clock::now()));
+
+        //determine how long to sleep for
+        current_time_point = std::chrono::system_clock::now();
+        current_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(current_time_point.time_since_epoch()).count();
+        pause_microseconds = DATA_READER_UPDATE_TIME_MICROSECONDS - (current_microseconds - preivous_microseconds);
+        preivous_microseconds = current_microseconds;
+
+        std::this_thread::sleep_for(std::chrono::microseconds(pause_microseconds));
+        
         if (read_fn(read_args_, data, timeout))
         {
             bool submessage_pushed = false;

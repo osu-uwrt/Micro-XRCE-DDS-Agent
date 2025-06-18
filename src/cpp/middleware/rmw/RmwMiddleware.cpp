@@ -390,6 +390,7 @@ namespace uxr {
         //destroy publisher
         PubSubInfo<rcl_publisher_t> pn = it->second;
         RCL_RET_CHECK_UXR_RET_FALSE(rcl_publisher_fini(pn.t.get(), pn.node.get()));
+        
 
         //if we get here, then remove from the map
         datawriters_.erase(datawriter_id);
@@ -528,6 +529,7 @@ namespace uxr {
         std::vector<uint8_t>& data,
         std::chrono::milliseconds timeout)
     {
+
         mtex.lock();
         auto it = datareaders_.find(datareader_id);
         if(it == datareaders_.end())

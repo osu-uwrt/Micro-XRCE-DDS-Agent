@@ -5,16 +5,18 @@
 #include <rosidl_typesupport_cpp/message_type_support.hpp>
 #include <rosidl_typesupport_fastrtps_cpp/message_type_support.h> //for deserialization
 
+#include <std_msgs/msg/u_int8.hpp>
 #include <std_msgs/msg/int8.hpp>
 #include <std_msgs/msg/float32.hpp>
 #include <std_msgs/msg/bool.hpp>
 #include <std_msgs/msg/string.hpp>
+#include <std_msgs/msg/int16.hpp>
+#include <std_msgs/msg/u_int16.hpp>
+#include <std_msgs/msg/string.hpp>
+#include <amr_msgs/msg/imu_data.hpp>
+#include <amr_msgs/msg/encoder.hpp>
 #include <amr_msgs/msg/firmware_status.hpp>
-// #include <riptide_msgs2/msg/battery_status.hpp>
-// #include <riptide_msgs2/msg/electrical_command.hpp>
-// #include <riptide_msgs2/msg/depth.hpp>
 #include <amr_msgs/msg/kill_switch_report.hpp>
-// #include <riptide_msgs2/msg/electrical_readings.hpp>
 
 class RosMessageType
 {
@@ -70,15 +72,16 @@ class RosMessageTypeImpl : public RosMessageType
 
 
 static std::map<std::string, std::shared_ptr<RosMessageType>> ROSIDL_TYPES = {
+    { "std_msgs::msg::dds_::UInt8_", std::make_shared<RosMessageTypeImpl<std_msgs::msg::UInt8>>() },
     { "std_msgs::msg::dds_::Int8_", std::make_shared<RosMessageTypeImpl<std_msgs::msg::Int8>>() },
     { "std_msgs::msg::dds_::Float32_", std::make_shared<RosMessageTypeImpl<std_msgs::msg::Float32>>() },
+    { "std_msgs::msg::dds_::Int16_", std::make_shared<RosMessageTypeImpl<std_msgs::msg::Int16>>() },
+    { "std_msgs::msg::dds_::UInt16_", std::make_shared<RosMessageTypeImpl<std_msgs::msg::UInt16>>() },
     { "std_msgs::msg::dds_::Bool_", std::make_shared<RosMessageTypeImpl<std_msgs::msg::Bool>>() },
     { "std_msgs::msg::dds_::String_", std::make_shared<RosMessageTypeImpl<std_msgs::msg::String>>() },
+    { "amr_msgs::msg::dds_::Encoder_", std::make_shared<RosMessageTypeImpl<amr_msgs::msg::Encoder>>() },
+    { "amr_msgs::msg::dds_::ImuData_", std::make_shared<RosMessageTypeImpl<amr_msgs::msg::ImuData>>() },
     { "amr_msgs::msg::dds_::FirmwareStatus_", std::make_shared<RosMessageTypeImpl<amr_msgs::msg::FirmwareStatus>>() },
-    // { "riptide_msgs2::msg::dds_::BatteryStatus_", std::make_shared<RosMessageTypeImpl<riptide_msgs2::msg::BatteryStatus>>() },
-    // { "riptide_msgs2::msg::dds_::ElectricalCommand_", std::make_shared<RosMessageTypeImpl<riptide_msgs2::msg::ElectricalCommand>>() },
-    // { "riptide_msgs2::msg::dds_::Depth_", std::make_shared<RosMessageTypeImpl<riptide_msgs2::msg::Depth>>() },
     { "amr_msgs::msg::dds_::KillSwitchReport_", std::make_shared<RosMessageTypeImpl<amr_msgs::msg::KillSwitchReport>>() },
-    // { "riptide_msgs2::msg::dds_::ElectricalReadings_", std::make_shared<RosMessageTypeImpl<riptide_msgs2::msg::ElectricalReadings>>() }
 };
 
