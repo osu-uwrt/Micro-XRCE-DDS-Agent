@@ -492,16 +492,12 @@ namespace uxr {
         size_t msg_sz;
         void *buf = msg_info->get_empty_as_void_ptr(&msg_sz);
 
-        amr_msgs::msg::FirmwareStatus fws;
-
         //de-serialize data into message buffer
         callbacks->cdr_deserialize(deser, buf); //now msg_data contains raw unserialized msg
         
         //publish data
         RCL_RET_CHECK_UXR_RET_FALSE(rcl_publish(pub.get(), buf, nullptr));
         msg_info->delete_empty(buf);
-        // free(buf);
-        // buf = nullptr;
 
         mtex.unlock();
         return true;

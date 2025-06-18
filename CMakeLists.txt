@@ -30,7 +30,7 @@ option(BUILD_SHARED_LIBS "Control shared/static building." ON)
 option(UAGENT_USE_SYSTEM_FASTDDS "Force find and use system installed Fast-DDS." OFF)
 option(UAGENT_USE_SYSTEM_FASTCDR "Force find and use system installed Fast-CDR." OFF)
 option(UAGENT_USE_SYSTEM_LOGGER "Force find and use system installed spdlog." OFF)
-option(UAGENT_FAST_PROFILE "Build FastMiddleware profile." OFF)
+option(UAGENT_FAST_PROFILE "Build FastMiddleware profile." ON)
 option(UAGENT_CED_PROFILE "Build CedMiddleware profile." ON)
 option(UAGENT_RMW_PROFILE "Build RMW profile" ON)
 option(UAGENT_DISCOVERY_PROFILE "Build Discovery profile." ON)
@@ -142,7 +142,7 @@ if(UAGENT_RMW_PROFILE)
     find_package(rosidl_typesupport_cpp REQUIRED)
     find_package(rosidl_typesupport_fastrtps_cpp REQUIRED)
     find_package(std_msgs REQUIRED)
-    find_package(amr_msgs REQUIRED)
+    find_package(riptide_msgs2 REQUIRED)
 endif()
 
 # Set CMAKE_BUILD_TYPE to Release by default.
@@ -345,10 +345,6 @@ target_include_directories(${PROJECT_NAME} BEFORE
 if(UAGENT_SOCKETCAN_PROFILE)
     ament_target_dependencies(${PROJECT_NAME}
         titan_canmore)
-    # target_link_libraries(${PROJECT_NAME} 
-    #     PUBLIC
-    #     titan_canmore::canmore
-    #     titan_canmore::canmore_cpp)
 endif()
 
 if(UAGENT_RMW_PROFILE)
@@ -358,24 +354,7 @@ if(UAGENT_RMW_PROFILE)
         rosidl_typesupport_cpp
         rosidl_typesupport_fastrtps_cpp
         std_msgs
-        amr_msgs)
-
-    # target_link_libraries(${PROJECT_NAME}
-    #     PUBLIC
-    #     rcl::rcl
-    #     rosidl_runtime_cpp::rosidl_runtime_cpp
-    #     rosidl_typesupport_cpp::rosidl_typesupport_cpp
-    #     rosidl_typesupport_fastrtps_cpp::rosidl_typesupport_fastrtps_cpp
-    #     std_msgs::std_msgs__rosidl_generator_cpp
-    #     std_msgs::std_msgs__rosidl_typesupport_cpp
-    #     std_msgs::std_msgs__rosidl_typesupport_fastrtps_cpp
-    #     riptide_msgs2::riptide_msgs2__rosidl_generator_cpp
-    #     riptide_msgs2::riptide_msgs2__rosidl_typesupport_cpp
-    #     riptide_msgs2::riptide_msgs2__rosidl_typesupport_fastrtps_cpp)
-
-    # target_include_directories(${PROJECT_NAME} PRIVATE
-    #     ${std_msgs_INCLUDE_DIRS}
-    #     ${riptide_msgs2_INCLUDE_DIRS})
+        riptide_msgs2)
 
 endif()
 
