@@ -15,11 +15,23 @@
 #ifndef UXR_AGENT_CLIENT_PROXYCLIENT_HPP_
 #define UXR_AGENT_CLIENT_PROXYCLIENT_HPP_
 
+#define PARTICIPANT_ID_OBJECT 1
+#define SUBSCRIBER_ID_OBJECT 2
+#define PUBLISHER_ID_OBJECT 3
+#define TOPIC_ID_OBJECT 6
+#define DATAWRITER_ID_OBJECT 5
+#define DATAREADER_ID_OBJECT 7
+#define REQUESTER_ID_OBJECT 8
+#define REPLIER_ID_OBJECT 9
+#define UNKNOWN_ID_OBJECT 4
+
 #include <uxr/agent/middleware/Middleware.hpp>
 #include <uxr/agent/participant/Participant.hpp>
 #include <uxr/agent/client/session/Session.hpp>
 #include <unordered_map>
 #include <array>
+#include <map>
+
 
 namespace eprosima {
 namespace uxr {
@@ -141,6 +153,8 @@ private:
     std::chrono::milliseconds client_dead_time_;
     bool hard_liveliness_check_;
     uint8_t  hard_liveliness_check_tries_;
+
+    std::map<std::array<unsigned char, 2>, int> type_map; //id, type
 };
 
 } // namespace uxr

@@ -46,8 +46,8 @@ template<typename T>
 struct PubSubInfo
 {
     std::string verified_type_name; //user must guarantee that this type name is in ROSIDL_TYPES
-    std::shared_ptr<rcl_node_t> node;
     std::shared_ptr<T> t;
+    std::shared_ptr<rcl_node_t> node;
 };
 
 namespace eprosima {
@@ -56,12 +56,11 @@ namespace middleware {
 class CallbackFactory;
 } // namespace middleware
 
+static size_t next_participant_id = 0;
+
 class RmwMiddleware : public Middleware
 {
 public:
-
-    size_t next_participant_id;
-
     RmwMiddleware();
     ~RmwMiddleware();
 
@@ -319,11 +318,10 @@ public:
 
     std::mutex mtex;
 
-    std::unordered_map<uint16_t, std::shared_ptr<rcl_node_t>> participants_;
     std::unordered_map<uint16_t, TopicInfo> topics_;
     std::unordered_map<uint16_t, PubSubInfo<rcl_publisher_t>> datawriters_;
     std::unordered_map<uint16_t, PubSubInfo<rcl_subscription_t>> datareaders_;
-
+    std::unordered_map<uint16_t, std::shared_ptr<rcl_node_t>> participants_;
     middleware::CallbackFactory& callback_factory_;
 };
 
