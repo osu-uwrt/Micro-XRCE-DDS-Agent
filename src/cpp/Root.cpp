@@ -178,6 +178,8 @@ dds::xrce::ResultStatus Root::get_info(dds::xrce::ObjectInfo& agent_info)
 
 dds::xrce::ResultStatus Root::delete_client(const dds::xrce::ClientKey& client_key)
 {
+    std::cout << "deleting client" << std::endl;
+
     dds::xrce::ResultStatus result_status;
     if (std::shared_ptr<ProxyClient> client = get_client(client_key))
     {
@@ -186,9 +188,13 @@ dds::xrce::ResultStatus Root::delete_client(const dds::xrce::ClientKey& client_k
         {
             ++current_client_;
         }
+
         client->release();
+
         clients_.erase(client_key);
+
         result_status.status(dds::xrce::STATUS_OK);
+
         UXR_AGENT_LOG_INFO(
             UXR_DECORATE_GREEN("delete"),
             UXR_CLIENT_KEY_PATTERN,

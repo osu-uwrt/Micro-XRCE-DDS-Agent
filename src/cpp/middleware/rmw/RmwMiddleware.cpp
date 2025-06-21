@@ -8,6 +8,8 @@
 #include <fastcdr/FastBuffer.h>
 #include <fastcdr/Cdr.h>
 
+#include <typeinfo>
+
 #include <rosidl_typesupport_fastrtps_cpp/identifier.hpp>
 
 #define RCL_RET_CHECK_UXR(expr, ret) \
@@ -28,16 +30,13 @@
 namespace eprosima {
 namespace uxr {
 
-
     RmwMiddleware::RmwMiddleware()
-     : callback_factory_(callback_factory_.getInstance()),
-       participants_{},
+     : participants_{},
        topics_{},
        datawriters_{},
-       datareaders_{}
+       datareaders_{},
+       callback_factory_(callback_factory_.getInstance())
     {
-        next_participant_id = 0;
-
 
         rcl_init_options_t init_options = rcl_get_zero_initialized_init_options();
         RCL_RET_CHECK_UXR_NO_RET(rcl_init_options_init(&init_options, rcutils_get_default_allocator()));
@@ -345,7 +344,7 @@ namespace uxr {
 
         //destroy node
         std::shared_ptr<rcl_node_t> node = it->second;
-        RCL_RET_CHECK_UXR_RET_FALSE(rcl_node_fini(node.get()));
+        //RCL_RET_CHECK_UXR_RET_FALSE(rcl_node_fini(node.get()));
 
         //if we get here then destroy good, remove from map
         participants_.erase(participant_id);
@@ -389,9 +388,9 @@ namespace uxr {
 
         //destroy publisher
         PubSubInfo<rcl_publisher_t> pn = it->second;
+
         RCL_RET_CHECK_UXR_RET_FALSE(rcl_publisher_fini(pn.t.get(), pn.node.get()));
         
-
         //if we get here, then remove from the map
         datawriters_.erase(datawriter_id);
 

@@ -22,6 +22,7 @@
 #include <uxr/agent/topic/Topic.hpp>
 #include <uxr/agent/logger/Logger.hpp>
 
+
 #ifdef UAGENT_FAST_PROFILE
 #include <uxr/agent/middleware/fast/FastMiddleware.hpp>
 #include <uxr/agent/middleware/fastdds/FastDDSMiddleware.hpp>
@@ -51,6 +52,8 @@ ProxyClient::ProxyClient(
     , client_dead_time_(CLIENT_DEAD_TIME)
     , hard_liveliness_check_(false)
 {
+    std::cout << "new proxy client" << std::endl;
+
     switch (middleware_kind)
     {
         case Middleware::Kind::NONE:
@@ -196,7 +199,10 @@ dds::xrce::ResultStatus ProxyClient::delete_object(const dds::xrce::ObjectId& ob
     result.status(dds::xrce::STATUS_OK);
     result.implementation_status(0x00);
 
+    std::cout << "Proxy client deleting object" << std::endl;
+
     std::lock_guard<std::mutex> lock(mtx_);
+
     if (!delete_object_unlock(object_id))
     {
         result.status(dds::xrce::STATUS_ERR_UNKNOWN_REFERENCE);
@@ -232,6 +238,33 @@ std::shared_ptr<XRCEObject> ProxyClient::get_object(const dds::xrce::ObjectId& o
 
 void ProxyClient::release()
 {
+    //BUCKEYE ENGINEERING
+
+    // erase everything but the particpant first
+    for(auto it = objects_.begin(); it != objects_.end();){
+        //find the type of the object utilizing its id
+        for(auto it2 = type_map.begin(); it2 != type_map.end(); ++it2){
+
+            //if the object is a participant (node) wait to erase
+            if(it2->first == it->first){
+                if(it2->second != PARTICIPANT_ID_OBJECT){
+
+                    //non participant so remove
+
+                    it = objects_.erase(it);
+                } else {
+                    //participant so remove last
+
+                    ++it;
+                }
+
+                //next object
+                break;
+            }
+        }
+    }
+
+    //now okay to clear the participant
     objects_.clear();
 }
 
@@ -249,27 +282,43 @@ bool ProxyClient::create_object(
     switch (representation._d())
     {
         case dds::xrce::OBJK_PARTICIPANT:
+
+            type_map[object_id] = PARTICIPANT_ID_OBJECT;
             rv = create_participant(object_id, representation.participant(), result_status);
             break;
         case dds::xrce::OBJK_TOPIC:
+
+            type_map[object_id] = TOPIC_ID_OBJECT;
             rv = create_topic(object_id, representation.topic(), result_status);
             break;
         case dds::xrce::OBJK_PUBLISHER:
+
+            type_map[object_id] = PUBLISHER_ID_OBJECT;
             rv = create_publisher(object_id, representation.publisher(), result_status);
             break;
         case dds::xrce::OBJK_SUBSCRIBER:
+
+            type_map[object_id] = SUBSCRIBER_ID_OBJECT;
             rv = create_subscriber(object_id, representation.subscriber(), result_status);
             break;
         case dds::xrce::OBJK_DATAWRITER:
+        
+            type_map[object_id] = DATAWRITER_ID_OBJECT;
             rv = create_datawriter(object_id, representation.data_writer(), result_status);
             break;
         case dds::xrce::OBJK_DATAREADER:
+
+            type_map[object_id] = DATAREADER_ID_OBJECT;
             rv = create_datareader(object_id, representation.data_reader(), result_status);
             break;
         case dds::xrce::OBJK_REQUESTER:
+
+            type_map[object_id] = REQUESTER_ID_OBJECT;
             rv = create_requester(object_id, representation.requester(), result_status);
             break;
         case dds::xrce::OBJK_REPLIER:
+
+            type_map[object_id] = REPLIER_ID_OBJECT;
             rv = create_replier(object_id, representation.replier(), result_status);
             break;
         case dds::xrce::OBJK_APPLICATION:
@@ -782,6 +831,7 @@ void ProxyClient::update_state(const ProxyClient::State state)
         hard_liveliness_check_tries_ = 0;
     }
 }
+
 
 } // namespace uxr
 } // namespace eprosima

@@ -625,6 +625,8 @@ bool Agent::delete_object(
 {
     bool rv = false;
 
+    std::cout << "agent deleting object" << std::endl;
+
     if (std::shared_ptr<ProxyClient> client = root_->get_client(conversion::raw_to_clientkey(client_key)))
     {
         dds::xrce::ResultStatus result = client->delete_object(conversion::raw_to_objectid(raw_id, object_kind));
