@@ -13,12 +13,11 @@
 #include <std_msgs/msg/int16.hpp>
 #include <std_msgs/msg/u_int16.hpp>
 #include <std_msgs/msg/string.hpp>
-#include <riptide_msgs2/msg/firmware_status.hpp>
-#include <riptide_msgs2/msg/battery_status.hpp>
-#include <riptide_msgs2/msg/electrical_command.hpp>
-#include <riptide_msgs2/msg/depth.hpp>
-#include <riptide_msgs2/msg/kill_switch_report.hpp>
-#include <riptide_msgs2/msg/electrical_readings.hpp> 
+#include <mercury_msgs/msg/firmware_status.hpp>
+#include <mercury_msgs/msg/electrical_command.hpp>
+#include <mercury_msgs/msg/depth.hpp>
+#include <mercury_msgs/msg/kill_switch_report.hpp>
+#include <mercury_msgs/msg/electrical_readings.hpp> 
 
 class RosMessageType
 {
@@ -77,11 +76,10 @@ static std::map<std::string, std::shared_ptr<RosMessageType>> ROSIDL_TYPES = {
     { "std_msgs::msg::dds_::Int8_", std::make_shared<RosMessageTypeImpl<std_msgs::msg::Int8>>() },
     { "std_msgs::msg::dds_::Float32_", std::make_shared<RosMessageTypeImpl<std_msgs::msg::Float32>>() },
     { "std_msgs::msg::dds_::Bool_", std::make_shared<RosMessageTypeImpl<std_msgs::msg::Bool>>() },
-    { "riptide_msgs2::msg::dds_::FirmwareStatus_", std::make_shared<RosMessageTypeImpl<riptide_msgs2::msg::FirmwareStatus>>() },
-    { "riptide_msgs2::msg::dds_::BatteryStatus_", std::make_shared<RosMessageTypeImpl<riptide_msgs2::msg::BatteryStatus>>() },
-    { "riptide_msgs2::msg::dds_::ElectricalCommand_", std::make_shared<RosMessageTypeImpl<riptide_msgs2::msg::ElectricalCommand>>() },
-    { "riptide_msgs2::msg::dds_::Depth_", std::make_shared<RosMessageTypeImpl<riptide_msgs2::msg::Depth>>() },
-    { "riptide_msgs2::msg::dds_::KillSwitchReport_", std::make_shared<RosMessageTypeImpl<riptide_msgs2::msg::KillSwitchReport>>() },
-    { "riptide_msgs2::msg::dds_::ElectricalReadings_", std::make_shared<RosMessageTypeImpl<riptide_msgs2::msg::ElectricalReadings>>() }
+    { "mercury_msgs::msg::dds_::FirmwareStatus_", std::make_shared<RosMessageTypeImpl<mercury_msgs::msg::FirmwareStatus>>() },
+    { "mercury_msgs::msg::dds_::ElectricalCommand_", std::make_shared<RosMessageTypeImpl<mercury_msgs::msg::ElectricalCommand>>() },
+    { "mercury_msgs::msg::dds_::Depth_", std::make_shared<RosMessageTypeImpl<mercury_msgs::msg::Depth>>() },
+    { "mercury_msgs::msg::dds_::KillSwitchReport_", std::make_shared<RosMessageTypeImpl<mercury_msgs::msg::KillSwitchReport>>() },
+    { "mercury_msgs::msg::dds_::ElectricalReadings_", std::make_shared<RosMessageTypeImpl<mercury_msgs::msg::ElectricalReadings>>() }
 };
 

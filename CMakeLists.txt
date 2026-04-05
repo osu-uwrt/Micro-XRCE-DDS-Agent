@@ -142,7 +142,7 @@ if(UAGENT_RMW_PROFILE)
     find_package(rosidl_typesupport_cpp REQUIRED)
     find_package(rosidl_typesupport_fastrtps_cpp REQUIRED)
     find_package(std_msgs REQUIRED)
-    find_package(riptide_msgs2 REQUIRED)
+    find_package(mercury_msgs REQUIRED)
 endif()
 
 # Set CMAKE_BUILD_TYPE to Release by default.
@@ -354,7 +354,7 @@ if(UAGENT_RMW_PROFILE)
         rosidl_typesupport_cpp
         rosidl_typesupport_fastrtps_cpp
         std_msgs
-        riptide_msgs2)
+        mercury_msgs)
 
 endif()
 
