@@ -18,6 +18,9 @@
 #include <mercury_msgs/msg/depth.hpp>
 #include <mercury_msgs/msg/kill_switch_report.hpp>
 #include <mercury_msgs/msg/electrical_readings.hpp> 
+#include <mercury_msgs/msg/dshot_command.hpp>
+#include <mercury_msgs/msg/dshot_partial_telemetry.hpp>
+#include <mercury_msgs/msg/dshot_rpm_feedback.hpp>
 
 class RosMessageType
 {
@@ -80,6 +83,10 @@ static std::map<std::string, std::shared_ptr<RosMessageType>> ROSIDL_TYPES = {
     { "mercury_msgs::msg::dds_::ElectricalCommand_", std::make_shared<RosMessageTypeImpl<mercury_msgs::msg::ElectricalCommand>>() },
     { "mercury_msgs::msg::dds_::Depth_", std::make_shared<RosMessageTypeImpl<mercury_msgs::msg::Depth>>() },
     { "mercury_msgs::msg::dds_::KillSwitchReport_", std::make_shared<RosMessageTypeImpl<mercury_msgs::msg::KillSwitchReport>>() },
-    { "mercury_msgs::msg::dds_::ElectricalReadings_", std::make_shared<RosMessageTypeImpl<mercury_msgs::msg::ElectricalReadings>>() }
+    { "mercury_msgs::msg::dds_::ElectricalReadings_", std::make_shared<RosMessageTypeImpl<mercury_msgs::msg::ElectricalReadings>>() },
+    { "mercury_msgs::msg::dds_::DshotCommand_", std::make_shared<RosMessageTypeImpl<mercury_msgs::msg::DshotCommand>>() },
+    { "mercury_msgs::msg::dds_::DshotPartialTelemetry_", std::make_shared<RosMessageTypeImpl<mercury_msgs::msg::DshotPartialTelemetry>>() },
+    { "mercury_msgs::msg::dds_::DshotRPMFeedback_", std::make_shared<RosMessageTypeImpl<mercury_msgs::msg::DshotRPMFeedback>>() },
+    { "mercury_msgs::msg::dds_::ElectricalReadings_", std::make_shared<RosMessageTypeImpl<mercury_msgs::msg::ElectricalReadings>>() },
 };
 
