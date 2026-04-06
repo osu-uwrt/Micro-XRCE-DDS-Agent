@@ -13,6 +13,7 @@
 #include <std_msgs/msg/int16.hpp>
 #include <std_msgs/msg/u_int16.hpp>
 #include <std_msgs/msg/string.hpp>
+#include <std_msgs/msg/int32.hpp>
 #include <mercury_msgs/msg/firmware_status.hpp>
 #include <mercury_msgs/msg/electrical_command.hpp>
 #include <mercury_msgs/msg/depth.hpp>
@@ -77,6 +78,7 @@ class RosMessageTypeImpl : public RosMessageType
 
 static std::map<std::string, std::shared_ptr<RosMessageType>> ROSIDL_TYPES = {
     { "std_msgs::msg::dds_::Int8_", std::make_shared<RosMessageTypeImpl<std_msgs::msg::Int8>>() },
+    { "std_msgs::msg::dds_::Int32_", std::make_shared<RosMessageTypeImpl<std_msgs::msg:::Int32>>() },
     { "std_msgs::msg::dds_::Float32_", std::make_shared<RosMessageTypeImpl<std_msgs::msg::Float32>>() },
     { "std_msgs::msg::dds_::Bool_", std::make_shared<RosMessageTypeImpl<std_msgs::msg::Bool>>() },
     { "mercury_msgs::msg::dds_::FirmwareStatus_", std::make_shared<RosMessageTypeImpl<mercury_msgs::msg::FirmwareStatus>>() },
@@ -87,6 +89,6 @@ static std::map<std::string, std::shared_ptr<RosMessageType>> ROSIDL_TYPES = {
     { "mercury_msgs::msg::dds_::DshotCommand_", std::make_shared<RosMessageTypeImpl<mercury_msgs::msg::DshotCommand>>() },
     { "mercury_msgs::msg::dds_::DshotPartialTelemetry_", std::make_shared<RosMessageTypeImpl<mercury_msgs::msg::DshotPartialTelemetry>>() },
     { "mercury_msgs::msg::dds_::DshotRPMFeedback_", std::make_shared<RosMessageTypeImpl<mercury_msgs::msg::DshotRPMFeedback>>() },
-    { "mercury_msgs::msg::dds_::ElectricalReadings_", std::make_shared<RosMessageTypeImpl<mercury_msgs::msg::ElectricalReadings>>() },
+    { "mercury_msgs::msg::dds_::ElectricalReadings_", std::make_shared<RosMessageTypeImpl<mercury_msgs::msg::ElectricalReadings>>() }
 };
 
