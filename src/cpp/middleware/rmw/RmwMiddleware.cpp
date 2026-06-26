@@ -9,6 +9,7 @@
 #include <fastcdr/Cdr.h>
 
 #include <typeinfo>
+#include <exception>
 
 #include <rosidl_typesupport_fastrtps_cpp/identifier.hpp>
 
@@ -26,7 +27,11 @@
 
 #define RCL_RET_CHECK_UXR_NO_RET(expr) RCL_RET_CHECK_UXR(expr,)
 #define RCL_RET_CHECK_UXR_RET_FALSE(expr) RCL_RET_CHECK_UXR(expr, false)
-
+namespace {
+    std::mutex g_rcl_context_mtx;
+    rcl_context_t g_rcl_context;
+    size_t g_rcl_context_refcount = 0;
+}
 namespace eprosima {
 namespace uxr {
 
@@ -37,14 +42,19 @@ namespace uxr {
        datareaders_{},
        callback_factory_(callback_factory_.getInstance())
     {
+        std::lock_guard<std::mutex> lock(g_rcl_context_mtx);
 
-        rcl_init_options_t init_options = rcl_get_zero_initialized_init_options();
-        RCL_RET_CHECK_UXR_NO_RET(rcl_init_options_init(&init_options, rcutils_get_default_allocator()));
+        if (g_rcl_context_refcount == 0)
+        {
+            rcl_init_options_t init_options = rcl_get_zero_initialized_init_options();
+            RCL_RET_CHECK_UXR_NO_RET(rcl_init_options_init(&init_options, rcutils_get_default_allocator()));
 
-        rcl_context = rcl_get_zero_initialized_context();
-        RCL_RET_CHECK_UXR_NO_RET(rcl_init(0, NULL, &init_options, &rcl_context));
-        RCL_RET_CHECK_UXR_NO_RET(rcl_init_options_fini(&init_options));
-        
+            g_rcl_context = rcl_get_zero_initialized_context();
+            RCL_RET_CHECK_UXR_NO_RET(rcl_init(0, NULL, &init_options, &g_rcl_context));
+            RCL_RET_CHECK_UXR_NO_RET(rcl_init_options_fini(&init_options));
+        }
+        ++g_rcl_context_refcount;
+
         UXR_AGENT_LOG_INFO(
             UXR_DECORATE_GREEN("rmw plugin active"),
             "Universal RMW set as active middleware.", "");
@@ -53,15 +63,35 @@ namespace uxr {
 
     RmwMiddleware::~RmwMiddleware()
     {
-        // RCL_RET_CHECK_UXR_NO_RET(rcl_shutdown(&rcl_context));
-        if(rcl_ret_t __ret = rcl_shutdown(&rcl_context) != RCL_RET_OK) \
+        std::lock_guard<std::mutex> lock(g_rcl_context_mtx);
+
+        // Finalize this client's endpoints and nodes while the context is still valid
+        // Holding the lock prevents another client's teardown from shutting the shared context down underneath us
+        // The shared_ptr deleters call rcl_*_fini in the correct order (pubs/subs before node)
         {
-            UXR_AGENT_LOG_ERROR(
-                UXR_DECORATE_RED("rmw plugin error"),
-                "rcl_shutdown failed with code " + std::to_string(__ret), "");
+            std::lock_guard<std::recursive_mutex> map_lock(mtex);
+            datawriters_.clear();
+            datareaders_.clear();
+            participants_.clear();
         }
 
-        Middleware::~Middleware();
+        if (g_rcl_context_refcount > 0 && --g_rcl_context_refcount == 0)
+        {
+            rcl_ret_t shutdown_ret = rcl_shutdown(&g_rcl_context);
+            if (shutdown_ret != RCL_RET_OK)
+            {
+                UXR_AGENT_LOG_ERROR(
+                    UXR_DECORATE_RED("rmw plugin error"),
+                    "rcl_shutdown failed with code " + std::to_string(shutdown_ret), "");
+            }
+            rcl_ret_t fini_ret = rcl_context_fini(&g_rcl_context);
+            if (fini_ret != RCL_RET_OK)
+            {
+                UXR_AGENT_LOG_ERROR(
+                    UXR_DECORATE_RED("rmw plugin error"),
+                    "rcl_context_fini failed with code %s", std::to_string(fini_ret).c_str());
+            }
+        }
     }
 
     /**********************************************************************************************************************
@@ -72,16 +102,35 @@ namespace uxr {
         int16_t domain_id,
         const std::string& ref)
     {
+        std::lock_guard<std::recursive_mutex> lock(mtex);
 
-        //referenced from here: https://github.com/ros2/rclcpp/blob/humble/rclcpp/src/rclcpp/node_interfaces/node_base.cpp
-        std::shared_ptr<rcl_node_t> node(new rcl_node_t(rcl_get_zero_initialized_node()));
+        // Don't init a second node if this participant id already exists
+        if (participants_.find(participant_id) != participants_.end())
+        {
+            return true;
+        }
+
+        auto node_deleter = [](rcl_node_t* n) {
+            rcl_ret_t fini_ret = rcl_node_fini(n);
+            if (fini_ret != RCL_RET_OK)
+            {
+                UXR_AGENT_LOG_ERROR(
+                    UXR_DECORATE_RED("rmw plugin error"),
+                    "rcl_node_fini failed with code " + std::to_string(fini_ret), "");
+            }
+            delete n;
+        };
+
+        std::shared_ptr<rcl_node_t> node(
+            new rcl_node_t(rcl_get_zero_initialized_node()), node_deleter);
+
         std::string part_name = "xrce_participant_" + std::to_string(next_participant_id);
         next_participant_id++;
         int ret;
         size_t invalid_index;
         RCL_RET_CHECK_UXR_RET_FALSE(rmw_validate_node_name(part_name.c_str(), &ret, &invalid_index));
         rcl_node_options_t node_options = rcl_node_get_default_options();
-        RCL_RET_CHECK_UXR_RET_FALSE(rcl_node_init(node.get(), part_name.c_str(), "/", &rcl_context, &node_options));
+        RCL_RET_CHECK_UXR_RET_FALSE(rcl_node_init(node.get(), part_name.c_str(), "/", &g_rcl_context, &node_options));
         participants_.insert({participant_id, node});
         return true;
     }
@@ -122,6 +171,7 @@ namespace uxr {
         uint16_t participant_id,
         const dds::xrce::OBJK_Topic_Binary& topic_xrce)
     {
+        std::lock_guard<std::recursive_mutex> lock(mtex);
 
         if(topics_.find(topic_id) == topics_.end())
         {
@@ -174,6 +224,7 @@ namespace uxr {
         uint16_t publisher_id,
         const std::string& ref)
     {
+        std::lock_guard<std::recursive_mutex> lock(mtex);
 
         PubSubIngredients pub_ingredients;
         if(!get_pubsub_ingredients_by_topic_id(ref, pub_ingredients))
@@ -181,17 +232,30 @@ namespace uxr {
             return false;
         }
 
-        const rosidl_message_type_support_t *ts = ROSIDL_TYPES[pub_ingredients.topic_type]->get_typesupport_handle();
+        const rosidl_message_type_support_t *ts = ROSIDL_TYPES.at(pub_ingredients.topic_type)->get_typesupport_handle();
 
-        //now create publisher
-        std::shared_ptr<rcl_publisher_t> pub(new rcl_publisher_t(rcl_get_zero_initialized_publisher()));
+        // keep the node alive for the publisher's lifetime, and fini the
+        // publisher (against that node) before the node is finalized
+        std::shared_ptr<rcl_node_t> node = pub_ingredients.node;
+        auto pub_deleter = [node](rcl_publisher_t* p) {
+            rcl_ret_t fini_ret = rcl_publisher_fini(p, node.get());
+            if (fini_ret != RCL_RET_OK)
+            {
+                UXR_AGENT_LOG_ERROR(
+                    UXR_DECORATE_RED("rmw plugin error"),
+                    "rcl_publisher_fini failed with code " + std::to_string(fini_ret), "");
+            }
+            delete p;
+        };
+
+        std::shared_ptr<rcl_publisher_t> pub(
+            new rcl_publisher_t(rcl_get_zero_initialized_publisher()), pub_deleter);
         rcl_publisher_options_t pub_ops = rcl_publisher_get_default_options();
-        RCL_RET_CHECK_UXR_RET_FALSE(rcl_publisher_init(pub.get(), pub_ingredients.node.get(), ts, pub_ingredients.topic_name.c_str(), &pub_ops));
+        RCL_RET_CHECK_UXR_RET_FALSE(rcl_publisher_init(pub.get(), node.get(), ts, pub_ingredients.topic_name.c_str(), &pub_ops));
 
-        //if we get here then init succeeded, add publisher to map
         PubSubInfo<rcl_publisher_t> pn;
         pn.verified_type_name = pub_ingredients.topic_type;
-        pn.node = pub_ingredients.node;
+        pn.node = node;
         pn.t = pub;
         datawriters_.insert({datawriter_id, pn});
         return true;
@@ -210,6 +274,7 @@ namespace uxr {
         uint16_t publisher_id,
         const dds::xrce::OBJK_DataWriter_Binary& datawriter_xrce)
     {
+        std::lock_guard<std::recursive_mutex> lock(mtex);
 
         //look up topic
         uint16_t topic_id = conversion::objectid_to_raw(datawriter_xrce.topic_id());
@@ -227,7 +292,7 @@ namespace uxr {
         uint16_t subscriber_id,
         const std::string& ref)
     {
-
+        std::lock_guard<std::recursive_mutex> lock(mtex);
 
         PubSubIngredients sub_ingredients;
 
@@ -236,17 +301,28 @@ namespace uxr {
             return false;
         }
 
-        const rosidl_message_type_support_t *ts = ROSIDL_TYPES[sub_ingredients.topic_type]->get_typesupport_handle();
+        const rosidl_message_type_support_t *ts = ROSIDL_TYPES.at(sub_ingredients.topic_type)->get_typesupport_handle();
 
-        //now create subscription
-        std::shared_ptr<rcl_subscription_t> sub(new rcl_subscription_t(rcl_get_zero_initialized_subscription()));
+        std::shared_ptr<rcl_node_t> node = sub_ingredients.node;
+        auto sub_deleter = [node](rcl_subscription_t* s) {
+            rcl_ret_t fini_ret = rcl_subscription_fini(s, node.get());
+            if (fini_ret != RCL_RET_OK)
+            {
+                UXR_AGENT_LOG_ERROR(
+                    UXR_DECORATE_RED("rmw plugin error"),
+                    "rcl_subscription_fini failed with code " + std::to_string(fini_ret), "");
+            }
+            delete s;
+        };
+
+        std::shared_ptr<rcl_subscription_t> sub(
+            new rcl_subscription_t(rcl_get_zero_initialized_subscription()), sub_deleter);
         rcl_subscription_options_t sub_ops = rcl_subscription_get_default_options();
-        RCL_RET_CHECK_UXR_RET_FALSE(rcl_subscription_init(sub.get(), sub_ingredients.node.get(), ts, sub_ingredients.topic_name.c_str(), &sub_ops));
-        
-        //if we got here then init succeeded, so add to datareaders
+        RCL_RET_CHECK_UXR_RET_FALSE(rcl_subscription_init(sub.get(), node.get(), ts, sub_ingredients.topic_name.c_str(), &sub_ops));
+
         PubSubInfo<rcl_subscription_t> sn;
         sn.verified_type_name = sub_ingredients.topic_type;
-        sn.node = sub_ingredients.node;
+        sn.node = node;
         sn.t = sub;
         datareaders_.insert({datareader_id, sn});
         return true;
@@ -265,6 +341,7 @@ namespace uxr {
         uint16_t subscriber_id,
         const dds::xrce::OBJK_DataReader_Binary& datareader_xrce)
     {
+        std::lock_guard<std::recursive_mutex> lock(mtex);
 
         //look up topic
         uint16_t topic_id = conversion::objectid_to_raw(datareader_xrce.topic_id());
@@ -336,24 +413,22 @@ namespace uxr {
      **********************************************************************************************************************/
     bool RmwMiddleware::delete_participant(uint16_t participant_id)
     {
+        std::lock_guard<std::recursive_mutex> lock(mtex);
+
         auto it = participants_.find(participant_id);
         if(it == participants_.end())
         {
             return false;
         }
-
-        //destroy node
-        std::shared_ptr<rcl_node_t> node = it->second;
-        //RCL_RET_CHECK_UXR_RET_FALSE(rcl_node_fini(node.get()));
-
-        //if we get here then destroy good, remove from map
+        // node is finalized once its pubs/subs have also been released
         participants_.erase(participant_id);
-
         return true;
     }
 
     bool RmwMiddleware::delete_topic(uint16_t topic_id)
     {
+        std::lock_guard<std::recursive_mutex> lock(mtex);
+
         auto it = topics_.find(topic_id);
         if(it == topics_.end())
         {
@@ -380,38 +455,27 @@ namespace uxr {
 
     bool RmwMiddleware::delete_datawriter(uint16_t datawriter_id)
     {
+        std::lock_guard<std::recursive_mutex> lock(mtex);
+
         auto it = datawriters_.find(datawriter_id);
         if(it == datawriters_.end())
         {
             return false;
         }
-
-        //destroy publisher
-        PubSubInfo<rcl_publisher_t> pn = it->second;
-
-        RCL_RET_CHECK_UXR_RET_FALSE(rcl_publisher_fini(pn.t.get(), pn.node.get()));
-        
-        //if we get here, then remove from the map
-        datawriters_.erase(datawriter_id);
-
+        datawriters_.erase(datawriter_id);  // deleter calls rcl_publisher_fini
         return true;
     }
 
     bool RmwMiddleware::delete_datareader(uint16_t datareader_id)
     {
+        std::lock_guard<std::recursive_mutex> lock(mtex);
+
         auto it = datareaders_.find(datareader_id);
         if(it == datareaders_.end())
         {
             return false;
         }
-
-        //destroy subscription
-        PubSubInfo<rcl_subscription_t> sn = it->second;
-        RCL_RET_CHECK_UXR_RET_FALSE(rcl_subscription_fini(sn.t.get(), sn.node.get()));
-
-        //if we get here, then remove from the map
-        datareaders_.erase(datareader_id);
-
+        datareaders_.erase(datareader_id);  // deleter calls rcl_subscription_fini
         return true;
     }
 
@@ -434,14 +498,12 @@ namespace uxr {
         uint16_t datawriter_id,
         const std::vector<uint8_t>& data)
     {
-
-        mtex.lock();
+        std::lock_guard<std::recursive_mutex> lock(mtex);
 
         //find datawriter
         auto it = datawriters_.find(datawriter_id);
         if(it == datawriters_.end())
         {
-            mtex.unlock();
             return false;
         }
 
@@ -456,8 +518,7 @@ namespace uxr {
             UXR_AGENT_LOG_ERROR(
                 UXR_DECORATE_RED("deserialization error"),
                 "Message too large: " + std::to_string(data.size()) + " > " + std::to_string(sizeof(serialized_buffer)), "");
-            
-            mtex.unlock();
+
             return false;
         }
 
@@ -466,9 +527,9 @@ namespace uxr {
         eprosima::fastcdr::FastBuffer fastbuffer(serialized_buffer, data.size());
         eprosima::fastcdr::Cdr deser(fastbuffer, eprosima::fastcdr::Cdr::DEFAULT_ENDIAN,
             eprosima::fastcdr::Cdr::DDS_CDR);
-        
+
         // get generic type support handle
-        std::shared_ptr<RosMessageType> msg_info = ROSIDL_TYPES[pn.verified_type_name];
+        std::shared_ptr<RosMessageType> msg_info = ROSIDL_TYPES.at(pn.verified_type_name);
         const rosidl_message_type_support_t 
             *generic_typesupport = msg_info->get_typesupport_handle(),
             *fastdds_typesupport = get_fastrtps_typesupport_handle(generic_typesupport);
@@ -479,9 +540,8 @@ namespace uxr {
             UXR_AGENT_LOG_ERROR(
                 UXR_DECORATE_RED("typesupport error"),
                 "" + vtn, "");
-            
-            mtex.unlock();
-            return true;
+
+            return false;
         }
 
         // callbacks, includes deserialize function handle
@@ -492,13 +552,31 @@ namespace uxr {
         void *buf = msg_info->get_empty_as_void_ptr(&msg_sz);
 
         //de-serialize data into message buffer
-        callbacks->cdr_deserialize(deser, buf); //now msg_data contains raw unserialized msg
-        
-        //publish data
-        RCL_RET_CHECK_UXR_RET_FALSE(rcl_publish(pub.get(), buf, nullptr));
+        try
+        {
+            callbacks->cdr_deserialize(deser, buf); //now msg_data contains raw unserialized msg
+        }
+        catch (const std::exception& e)
+        {
+            UXR_AGENT_LOG_ERROR(
+                UXR_DECORATE_RED("deserialization error"),
+                "%s", e.what());
+            msg_info->delete_empty(buf);
+            return false;
+        }
+
+        //publish data (rcl_publish serializes inline, so buf can be freed after it returns)
+        rcl_ret_t pub_ret = rcl_publish(pub.get(), buf, nullptr);
         msg_info->delete_empty(buf);
 
-        mtex.unlock();
+        if (pub_ret != RCL_RET_OK)
+        {
+            UXR_AGENT_LOG_CRITICAL(
+                UXR_DECORATE_RED("rmw plugin error"),
+                "rcl_publish failed with code " + std::to_string(pub_ret), "");
+            return false;
+        }
+
         return true;
     }
 
@@ -524,12 +602,11 @@ namespace uxr {
         std::vector<uint8_t>& data,
         std::chrono::milliseconds timeout)
     {
+        std::lock_guard<std::recursive_mutex> lock(mtex);
 
-        mtex.lock();
         auto it = datareaders_.find(datareader_id);
         if(it == datareaders_.end())
         {
-            mtex.unlock();
             return false;
         }
 
@@ -537,7 +614,7 @@ namespace uxr {
         PubSubInfo<rcl_subscription_t> sn = it->second;
         std::shared_ptr<rcl_subscription_t> sub = sn.t;
 
-        std::shared_ptr<RosMessageType> msg_info = ROSIDL_TYPES[sn.verified_type_name];
+        std::shared_ptr<RosMessageType> msg_info = ROSIDL_TYPES.at(sn.verified_type_name);
 
         //get generic message into buffer
         size_t msg_size;
@@ -549,8 +626,6 @@ namespace uxr {
 
         if(ret == RCL_RET_SUBSCRIPTION_TAKE_FAILED)
         {
-            mtex.unlock();
-                    
             msg_info->delete_empty(buf);
             return false;
         }
@@ -560,8 +635,6 @@ namespace uxr {
             UXR_AGENT_LOG_CRITICAL(
                 UXR_DECORATE_RED("rmw plugin error"),
                 "rcl_take failed with code " + std::to_string(ret), "");
-            
-            mtex.unlock();
 
             msg_info->delete_empty(buf);
 
@@ -582,26 +655,37 @@ namespace uxr {
                 UXR_DECORATE_RED("typesupport error"),
                 "" + vtn, "");
 
-            mtex.unlock();
-
             msg_info->delete_empty(buf);
 
-            return true;
+            return false;
         }
 
         auto callbacks = static_cast<const message_type_support_callbacks_t *>(fastrtps_typesupport->data);
 
-        eprosima::fastcdr::FastBuffer fastbuffer(serialized_buffer, msg_size);
+        // size the buffer to the actual capacity, not the in-memory struct size,
+        // so variable-length messages can't overflow serialized_buffer
+        eprosima::fastcdr::FastBuffer fastbuffer(serialized_buffer, sizeof(serialized_buffer));
         eprosima::fastcdr::Cdr ser(fastbuffer, eprosima::fastcdr::Cdr::DEFAULT_ENDIAN,
             eprosima::fastcdr::Cdr::DDS_CDR);
-        
-        callbacks->cdr_serialize(buf, ser);
+
+        try
+        {
+            callbacks->cdr_serialize(buf, ser);
+        }
+        catch (const std::exception& e)
+        {
+            UXR_AGENT_LOG_ERROR(
+                UXR_DECORATE_RED("serialization error"),
+                "%s", e.what());
+            msg_info->delete_empty(buf);
+            return false;
+        }
+
         msg_info->delete_empty(buf);
 
-        //pack into data out
-        data.assign(fastbuffer.getBuffer(), fastbuffer.getBuffer() + fastbuffer.getBufferSize());
+        //pack into data out, using the number of bytes actually written
+        data.assign(serialized_buffer, serialized_buffer + ser.getSerializedDataLength());
 
-        mtex.unlock();
         return true;
     }
 
@@ -776,17 +860,8 @@ namespace uxr {
 
     const rosidl_message_type_support_t *RmwMiddleware::get_fastrtps_typesupport_handle(const rosidl_message_type_support_t* generic_handle)
     {
-        const rosidl_message_type_support_t * fastdds_typesupport = get_message_typesupport_handle(
+        return get_message_typesupport_handle(
             generic_handle, rosidl_typesupport_fastrtps_cpp::typesupport_identifier);
-
-        if (!fastdds_typesupport) {
-            fastdds_typesupport = get_message_typesupport_handle(
-                generic_handle, rosidl_typesupport_fastrtps_cpp::typesupport_identifier);
-
-            return nullptr;
-        }
-
-        return fastdds_typesupport;
     }
 
     bool RmwMiddleware::get_pubsub_ingredients_by_topic_id(uint16_t id, PubSubIngredients& ingredients)
@@ -814,7 +889,7 @@ namespace uxr {
                 UXR_DECORATE_RED("type error"),
                 "Message type " + tinfo.topic_type + " is not supported.", "");
 
-            return true;
+            return false;
         }
 
         //ros message type exists, populate ingredients
@@ -822,7 +897,7 @@ namespace uxr {
 
         //find ros node
         uint16_t participant_id = tinfo.participant_id;
-        
+
         auto partit = participants_.find(participant_id);
         if(partit == participants_.end())
         {

@@ -5,12 +5,14 @@
 #include <rosidl_typesupport_cpp/message_type_support.hpp>
 #include <rosidl_typesupport_fastrtps_cpp/message_type_support.h> //for deserialization
 
+#include <std_msgs/msg/empty.hpp>
 #include <std_msgs/msg/u_int8.hpp>
 #include <std_msgs/msg/int8.hpp>
 #include <std_msgs/msg/float32.hpp>
 #include <std_msgs/msg/bool.hpp>
 #include <std_msgs/msg/string.hpp>
 #include <std_msgs/msg/int16.hpp>
+#include <std_msgs/msg/int32.hpp>
 #include <std_msgs/msg/u_int16.hpp>
 #include <std_msgs/msg/string.hpp>
 #include <riptide_msgs2/msg/firmware_status.hpp>
@@ -19,6 +21,12 @@
 #include <riptide_msgs2/msg/depth.hpp>
 #include <riptide_msgs2/msg/kill_switch_report.hpp>
 #include <riptide_msgs2/msg/electrical_readings.hpp> 
+#include <riptide_msgs2/msg/dshot_command.hpp>
+#include <riptide_msgs2/msg/dshot_rpm_feedback.hpp>
+#include <riptide_msgs2/msg/dshot_partial_telemetry.hpp>
+#include <riptide_msgs2/msg/led_command.hpp>
+#include <riptide_msgs2/msg/actuator_status.hpp>
+#include <riptide_msgs2/msg/dynamixel_status.hpp>
 
 class RosMessageType
 {
@@ -74,14 +82,22 @@ class RosMessageTypeImpl : public RosMessageType
 
 
 static std::map<std::string, std::shared_ptr<RosMessageType>> ROSIDL_TYPES = {
+    { "std_msgs::msg::dds_::Empty_", std::make_shared<RosMessageTypeImpl<std_msgs::msg::Empty>>() },
     { "std_msgs::msg::dds_::Int8_", std::make_shared<RosMessageTypeImpl<std_msgs::msg::Int8>>() },
+    { "std_msgs::msg::dds_::Int32_", std::make_shared<RosMessageTypeImpl<std_msgs::msg::Int32>>() },
     { "std_msgs::msg::dds_::Float32_", std::make_shared<RosMessageTypeImpl<std_msgs::msg::Float32>>() },
     { "std_msgs::msg::dds_::Bool_", std::make_shared<RosMessageTypeImpl<std_msgs::msg::Bool>>() },
+    { "std_msgs::msg::dds_::String_", std::make_shared<RosMessageTypeImpl<std_msgs::msg::String>>() },
     { "riptide_msgs2::msg::dds_::FirmwareStatus_", std::make_shared<RosMessageTypeImpl<riptide_msgs2::msg::FirmwareStatus>>() },
     { "riptide_msgs2::msg::dds_::BatteryStatus_", std::make_shared<RosMessageTypeImpl<riptide_msgs2::msg::BatteryStatus>>() },
     { "riptide_msgs2::msg::dds_::ElectricalCommand_", std::make_shared<RosMessageTypeImpl<riptide_msgs2::msg::ElectricalCommand>>() },
     { "riptide_msgs2::msg::dds_::Depth_", std::make_shared<RosMessageTypeImpl<riptide_msgs2::msg::Depth>>() },
     { "riptide_msgs2::msg::dds_::KillSwitchReport_", std::make_shared<RosMessageTypeImpl<riptide_msgs2::msg::KillSwitchReport>>() },
-    { "riptide_msgs2::msg::dds_::ElectricalReadings_", std::make_shared<RosMessageTypeImpl<riptide_msgs2::msg::ElectricalReadings>>() }
+    { "riptide_msgs2::msg::dds_::ElectricalReadings_", std::make_shared<RosMessageTypeImpl<riptide_msgs2::msg::ElectricalReadings>>() },
+    { "riptide_msgs2::msg::dds_::DshotCommand_", std::make_shared<RosMessageTypeImpl<riptide_msgs2::msg::DshotCommand>>() },
+    { "riptide_msgs2::msg::dds_::DshotRPMFeedback_", std::make_shared<RosMessageTypeImpl<riptide_msgs2::msg::DshotRPMFeedback>>() },
+    { "riptide_msgs2::msg::dds_::DshotPartialTelemetry_", std::make_shared<RosMessageTypeImpl<riptide_msgs2::msg::DshotPartialTelemetry>>() },
+    { "riptide_msgs2::msg::dds_::LedCommand_", std::make_shared<RosMessageTypeImpl<riptide_msgs2::msg::LedCommand>>() },
+    { "riptide_msgs2::msg::dds_::ActuatorStatus_", std::make_shared<RosMessageTypeImpl<riptide_msgs2::msg::ActuatorStatus>>() },
+    { "riptide_msgs2::msg::dds_::DynamixelStatus_", std::make_shared<RosMessageTypeImpl<riptide_msgs2::msg::DynamixelStatus>>() }
 };
-

@@ -313,10 +313,7 @@ public:
 
     char serialized_buffer[MAX_MSG_LENGTH];
 
-    bool rcl_initted = false;
-    rcl_context_t rcl_context;
-
-    std::mutex mtex;
+    std::recursive_mutex mtex; // some locked calls re-lock by calling other locked methods so use recursive
 
     std::unordered_map<uint16_t, TopicInfo> topics_;
     std::unordered_map<uint16_t, PubSubInfo<rcl_publisher_t>> datawriters_;
