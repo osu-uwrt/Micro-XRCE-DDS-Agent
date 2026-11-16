@@ -57,7 +57,8 @@ if((CMAKE_SYSTEM_NAME STREQUAL "") AND (NOT CMAKE_HOST_SYSTEM_NAME STREQUAL "Lin
     set(UAGENT_P2P_PROFILE OFF)
 endif()
 
-if((CMAKE_SYSTEM_NAME STREQUAL "Darwin") OR (CMAKE_SYSTEM_NAME STREQUAL "Windows"))
+# titan_canmore's CANTransport has non-SocketCAN backends, so only Windows goes without
+if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     set(UAGENT_SOCKETCAN_PROFILE OFF)
 endif()
 

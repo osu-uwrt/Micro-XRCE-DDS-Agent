@@ -24,8 +24,6 @@
 
 #include <unistd.h>
 
-#include <net/if.h>
-
 namespace eprosima {
 namespace uxr {
 
@@ -113,12 +111,8 @@ bool CanAgent::init()
 
         //std::cout << dev_.c_str() <<std::endl;
 
-        int ifIdx = if_nametoindex(dev_.c_str());
-        if (!ifIdx) {
-            throw std::system_error(errno, std::generic_category(), "if_nametoindex");
-        }
-
-        canmoreAgent_.reset(new Canmore::MsgAgent(ifIdx, *this, clientIds_));
+        // dev_ is a canmore CAN spec: can0, a bus from canmore-can up (gsusb0), gsusb:..., slcan:..., cannelloni:...
+        canmoreAgent_.reset(new Canmore::MsgAgent(dev_, *this, clientIds_));
         pollGroup_.reset(new Canmore::PollGroup());
         pollGroup_->addFd(*canmoreAgent_);
 
