@@ -25,6 +25,12 @@
 #include <fastcdr/Cdr.h>
 #include "../../xmlobjects/xmlobjects.h"
 
+// same as Logger.hpp, for the fast dds ids logged here
+#if defined(UAGENT_LOGGER_PROFILE) && FMT_VERSION >= 100000
+template<> struct fmt::formatter<eprosima::fastrtps::rtps::EntityId_t> : fmt::ostream_formatter {};
+template<> struct fmt::formatter<eprosima::fastrtps::rtps::GuidPrefix_t> : fmt::ostream_formatter {};
+#endif
+
 namespace eprosima {
 namespace uxr {
 

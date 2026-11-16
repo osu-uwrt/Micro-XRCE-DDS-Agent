@@ -24,6 +24,25 @@
 #include <spdlog/fmt/ostr.h>
 #include <spdlog/fmt/bin_to_hex.h>
 #include <spdlog/sinks/stdout_sinks.h>
+
+// fmt 10+ dropped formatting through operator<<, so name the types we log that way (jammy's fmt 8 doesn't need it)
+#if FMT_VERSION >= 100000
+#include <uxr/agent/transport/endpoint/IPv4EndPoint.hpp>
+#include <uxr/agent/transport/endpoint/IPv6EndPoint.hpp>
+#include <uxr/agent/transport/endpoint/CanEndPoint.hpp>
+#include <uxr/agent/transport/endpoint/SerialEndPoint.hpp>
+#include <uxr/agent/transport/endpoint/MultiSerialEndPoint.hpp>
+#include <uxr/agent/transport/endpoint/CustomEndPoint.hpp>
+#include <uxr/agent/types/XRCETypes.hpp>
+
+template<> struct fmt::formatter<eprosima::uxr::IPv4EndPoint> : fmt::ostream_formatter {};
+template<> struct fmt::formatter<eprosima::uxr::IPv6EndPoint> : fmt::ostream_formatter {};
+template<> struct fmt::formatter<eprosima::uxr::CanEndPoint> : fmt::ostream_formatter {};
+template<> struct fmt::formatter<eprosima::uxr::SerialEndPoint> : fmt::ostream_formatter {};
+template<> struct fmt::formatter<eprosima::uxr::MultiSerialEndPoint> : fmt::ostream_formatter {};
+template<> struct fmt::formatter<eprosima::uxr::CustomEndPoint> : fmt::ostream_formatter {};
+template<> struct fmt::formatter<dds::xrce::TransportAddress> : fmt::ostream_formatter {};
+#endif
 #endif
 
 #ifdef _WIN32
