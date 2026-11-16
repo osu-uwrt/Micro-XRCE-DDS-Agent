@@ -111,7 +111,7 @@ bool CanAgent::init()
 
         //std::cout << dev_.c_str() <<std::endl;
 
-        // dev_ is a canmore CAN spec: can0, a bus from canmore-can up (gsusb0), gsusb:..., slcan:..., cannelloni:...
+        // dev_ is a canmore CAN spec: can0, a bus from canmore_can up (gsusb0), gsusb:..., slcan:..., cannelloni:...
         canmoreAgent_.reset(new Canmore::MsgAgent(dev_, *this, clientIds_));
         pollGroup_.reset(new Canmore::PollGroup());
         pollGroup_->addFd(*canmoreAgent_);
